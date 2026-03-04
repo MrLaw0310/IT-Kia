@@ -1,22 +1,26 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
+// RootLayout — 整个 App 最外层结构
 export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <>
+      {/* 状态栏设为浅色文字，适配深色背景 */}
+      <StatusBar style="light" />
+
+      <Stack
+        screenOptions={{
+          headerShown:      false,       // 隐藏顶部导航栏
+          contentStyle:     { backgroundColor: "#060D1F" }, // 防止页面切换时闪白
+          animation:        "fade",      // 页面切换动画：淡入淡出
+        }}
+      >
+        {/* Splash Screen */}
+        <Stack.Screen name="index" />
+
+        {/* Tabs — home / map / history / profile */}
+        <Stack.Screen name="(tabs)" />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </>
   );
 }
