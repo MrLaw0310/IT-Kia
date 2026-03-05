@@ -1,124 +1,121 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// app/(tabs)/_layout.tsx  （Tab Bar Layout）
+//
+// 底部导航栏，包含 4 个 Tab：Home / Map / History / Profile
+// 颜色跟随主题自动变化
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { Tabs } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { useTheme } from "../../utils/ThemeContext";
 
-// ─── Colours ──────────────────────────────────────────────────────────
-const C = {
-  bg:       "#060D1F",
-  tabBar:   "#080F22",
-  border:   "#1A2F5A",
-  accent:   "#1E90FF",
-  inactive: "#6B7FA8",
-};
-
-// ─── Custom Tab Icon ──────────────────────────────────────────────────
+// ─── 自定义 Tab 图标 ──────────────────────────────────────────────────
 function TabIcon({
   emoji,
-  label,
   focused,
 }: {
-  emoji: string;
-  label: string;
+  emoji:   string;
   focused: boolean;
 }) {
+  const { theme } = useTheme();
+
   return (
-    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+    <View style={[
+      styles.iconWrap,
+      // 选中时显示主题色背景
+      focused && { backgroundColor: theme.accent + "20" },
+    ]}>
       <Text style={styles.emoji}>{emoji}</Text>
-      {focused && <View style={styles.activeDot} />}
+      {/* 选中时底部显示小圆点 */}
+      {focused && (
+        <View style={[styles.activeDot, { backgroundColor: theme.accent }]} />
+      )}
     </View>
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────
+// ─── Tab Layout ───────────────────────────────────────────────────────
 export default function TabLayout() {
+  const { theme } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor:   C.accent,
-        tabBarInactiveTintColor: C.inactive,
+
+        // Tab 标签颜色随主题变化
+        tabBarActiveTintColor:   theme.accent,
+        tabBarInactiveTintColor: theme.muted,
+
+        // Tab 栏背景随主题变化
         tabBarStyle: {
-          backgroundColor:  C.tabBar,
-          borderTopColor:   C.border,
-          borderTopWidth:   1,
-          height:           68,
-          paddingBottom:    12,
-          paddingTop:       8,
+          backgroundColor: theme.tabBar,
+          borderTopColor:  theme.tabBorder,
+          borderTopWidth:  1,
+          height:          68,
+          paddingBottom:   12,
+          paddingTop:      8,
         },
         tabBarLabelStyle: {
-          fontSize:   10,
-          fontWeight: "700",
+          fontSize:      10,
+          fontWeight:    "700",
           letterSpacing: 0.5,
         },
       }}
     >
-      {/* Home — Dashboard */}
+      {/* 首页 */}
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🏠" label="Home" focused={focused} />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
         }}
       />
 
-      {/* Map — Parking Grid */}
+      {/* 停车地图 */}
       <Tabs.Screen
         name="map"
         options={{
           title: "Map",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🗺️" label="Map" focused={focused} />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} />,
         }}
       />
 
-      {/* History — Parking Records */}
+      {/* 历史记录 */}
       <Tabs.Screen
         name="history"
         options={{
           title: "History",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🕐" label="History" focused={focused} />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🕐" focused={focused} />,
         }}
       />
 
-      {/* Profile — Student Info */}
+      {/* 个人资料 & 主题设置 */}
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👤" label="Profile" focused={focused} />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
         }}
       />
     </Tabs>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   iconWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 40,
-    height: 32,
-    borderRadius: 10,
+    alignItems:      "center",
+    justifyContent:  "center",
+    width:           40,
+    height:          32,
+    borderRadius:    10,
   },
-  iconWrapActive: {
-    backgroundColor: "rgba(30,144,255,0.12)",
-  },
-  emoji: {
-    fontSize: 20,
-  },
+  emoji: { fontSize: 20 },
   activeDot: {
-    position: "absolute",
-    bottom: -4,
-    width: 4,
-    height: 4,
+    position:     "absolute",
+    bottom:       -4,
+    width:        4,
+    height:       4,
     borderRadius: 2,
-    backgroundColor: "#1E90FF",
   },
 });
