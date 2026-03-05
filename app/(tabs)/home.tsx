@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Image,
   Linking,
   ScrollView,
   StyleSheet,
@@ -106,9 +107,7 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>Good morning 👋</Text>
             <Text style={styles.pageTitle}>Parking Dashboard</Text>
           </View>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>MDIS</Text>
-          </View>
+            <Image source={require('../../assets/images/itkia.jpg')} style={{ width: 80, height: 40, resizeMode: 'contain' }} />
         </Animated.View>
 
         {/* ── GPS / Navigate Card ── */}
