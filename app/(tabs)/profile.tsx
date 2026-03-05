@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { loadPlates, savePlates } from '../utils/storage';
 
 // ─── Colours ──────────────────────────────────────────────────────────
 const C = {
@@ -249,10 +250,29 @@ function SettingRow({ icon, label, sub, onPress, right }: {
 export default function ProfileScreen() {
   const [avatarUri,    setAvatarUri]    = useState<string | null>(null);
   const [avatarModal,  setAvatarModal]  = useState(false);
-  const [vehicles,     setVehicles]     = useState<Vehicle[]>([
-    { id: "1", plate: "WXY 1234", model: "Honda Civic (White)",  isPaid: true,  isOKU: false },
-    { id: "2", plate: "JHB 5678", model: "Toyota Vios (Silver)", isPaid: true,  isOKU: false },
-  ]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  useEffect(() => {
+  loadPlates().then(savedPlates => {
+    if (savedPlates.length > 0) {
+      const loaded = savedPlates.map((plate, i) => ({
+        id: i.toString(),
+        plate,
+        model: "",
+        isPaid: true,
+        isOKU: false,
+      }));
+      setVehicles(loaded);
+    } else {
+      // 第一次启动，用默认数据并保存
+      const defaults: Vehicle[] = [
+        { id: "1", plate: "WXY 1234", model: "Honda Civic (White)",  isPaid: true, isOKU: false },
+        { id: "2", plate: "JHB 5678", model: "Toyota Vios (Silver)", isPaid: true, isOKU: false },
+      ];
+      setVehicles(defaults);
+      savePlates(defaults.map(v => v.plate));
+    }
+  });
+}, []);
   const [vehicleModal, setVehicleModal] = useState(false);
   const [editTarget,   setEditTarget]   = useState<Vehicle | undefined>(undefined);
   const [notifP,       setNotifP]       = useState(true);
@@ -303,38 +323,44 @@ export default function ProfileScreen() {
     ]);
   }
 
-  // ── Vehicle management ─────────────────────────────────────────────
-  function addVehicle(plate: string, model: string, isOKU: boolean) {
-    if (vehicles.length >= MAX_VEHICLES) {
-      Alert.alert("Limit Reached", `Max ${MAX_VEHICLES} vehicles allowed.`);
-      return;
-    }
-    setVehicles(prev => [...prev, { id: Date.now().toString(), plate, model, isPaid: false, isOKU }]);
-    Alert.alert("✅ Registered", `${plate} added. Please pay RM${ANNUAL_FEE} at admin office.`);
+ // ── Vehicle management ─────────────────────────────────────────────
+function addVehicle(plate: string, model: string, isOKU: boolean) {
+  if (vehicles.length >= MAX_VEHICLES) {
+    Alert.alert("Limit Reached", `Max ${MAX_VEHICLES} vehicles allowed.`);
+    return;
   }
+  const newVehicles = [...vehicles, { id: Date.now().toString(), plate, model, isPaid: false, isOKU }];
+  setVehicles(newVehicles);
+  savePlates(newVehicles.map(v => v.plate));
+  Alert.alert("✅ Registered", `${plate} added. Please pay RM${ANNUAL_FEE} at admin office.`);
+}
 
-  function editVehicle(plate: string, model: string, isOKU: boolean) {
-    if (!editTarget) return;
-    setVehicles(prev => prev.map(v =>
-      v.id === editTarget.id ? { ...v, plate, model, isOKU } : v
-    ));
-  }
+function editVehicle(plate: string, model: string, isOKU: boolean) {
+  if (!editTarget) return;
+  const updated = vehicles.map(v =>
+    v.id === editTarget.id ? { ...v, plate, model, isOKU } : v
+  );
+  setVehicles(updated);
+  savePlates(updated.map(v => v.plate));
+}
 
-  function removeVehicle(id: string) {
-    Alert.alert("Remove Vehicle", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () =>
-          setVehicles(prev => prev.filter(v => v.id !== id)) },
-    ]);
-  }
+function removeVehicle(id: string) {
+  Alert.alert("Remove Vehicle", "Are you sure?", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Remove", style: "destructive", onPress: () => {
+        const filtered = vehicles.filter(v => v.id !== id);
+        setVehicles(filtered);
+        savePlates(filtered.map(v => v.plate));
+    }},
+  ]);
+}
 
-  function handleLogout() {
-    Alert.alert("Log Out", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Log Out", style: "destructive", onPress: () => {} },
-    ]);
-  }
-
+function handleLogout() {
+  Alert.alert("Log Out", "Are you sure?", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Log Out", style: "destructive", onPress: () => {} },
+  ]);
+}
   return (
     <View style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>

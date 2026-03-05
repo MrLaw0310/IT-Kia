@@ -1,16 +1,17 @@
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import {
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
+import { loadPlates } from '../utils/storage';
 
 // ─── Colours ──────────────────────────────────────────────────────────
 const C = {
@@ -25,8 +26,8 @@ const C = {
   muted:  "#6B7FA8",
 };
 
-// Mock registered vehicles for this student
-const REGISTERED_PLATES = ["WXY 1234", "JHB 5678"];
+// 空的，留着不用
+
 
 type Step = "entry" | "confirm" | "success";
 
@@ -37,6 +38,13 @@ export default function CameraScreen() {
   const [plate, setPlate]       = useState("");
   const [matchedPlate, setMatched] = useState("");
   const [error, setError]       = useState("");
+  const [registeredPlates, setRegisteredPlates] = useState<string[]>([]);
+
+useFocusEffect(
+  useCallback(() => {
+    loadPlates().then(setRegisteredPlates);
+  }, [])
+);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -58,7 +66,7 @@ export default function CameraScreen() {
     }
 
     // Check against registered vehicles
-    const match = REGISTERED_PLATES.find(p => p.toUpperCase() === cleaned);
+    const match = registeredPlates.find(p => p.toUpperCase() === cleaned);
 
     if (!match) {
       setError(`"${cleaned}" is not registered under your account.\nPlease check your plate or register it in Profile.`);
@@ -162,7 +170,7 @@ export default function CameraScreen() {
             {/* Registered vehicles quick-pick */}
             <Text style={styles.quickPickLabel}>Your Registered Vehicles</Text>
             <View style={styles.quickPickRow}>
-              {REGISTERED_PLATES.map(p => (
+              {registeredPlates.map(p => (
                 <TouchableOpacity
                   key={p}
                   style={styles.quickPickBtn}

@@ -36,8 +36,8 @@ const C = {
 };
 
 // MDIS Malaysia campus — EduCity, Iskandar Puteri, Johor
-const MDIS_LAT = 1.4294;
-const MDIS_LNG = 103.6364;
+const MDIS_LAT = 1.43364;
+const MDIS_LNG = 103.615175;
 
 // ─── Animated Number ──────────────────────────────────────────────────
 function AnimatedNumber({ value, style }: { value: number; style?: any }) {
