@@ -4,6 +4,7 @@ import {
   Animated, Image, Linking, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import { useParkingContext } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
 
 const TOTAL_SPOTS     = 60;
@@ -11,13 +12,6 @@ const AVAILABLE_SPOTS = 23;
 const OCCUPIED_SPOTS  = TOTAL_SPOTS - AVAILABLE_SPOTS;
 const MDIS_LAT = 1.43364;
 const MDIS_LNG = 103.615175;
-
-const recentActivity = [
-  { id:"1", plate:"WXY 1234", action:"Checked In",  time:"08:14 AM", isIn:true  },
-  { id:"2", plate:"JKL 5678", action:"Checked Out", time:"08:02 AM", isIn:false },
-  { id:"3", plate:"ABC 9999", action:"Checked In",  time:"07:55 AM", isIn:true  },
-  { id:"4", plate:"DEF 3321", action:"Checked Out", time:"07:40 AM", isIn:false },
-];
 
 function AnimatedNumber({ value, style }: { value: number; style?: any }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -47,6 +41,7 @@ function AvailabilityRing({ available, total, T }: { available:number; total:num
 }
 
 export default function HomeScreen() {
+  const { activity } = useParkingContext();
   const { theme: T } = useTheme();
   const router    = useRouter();
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -154,16 +149,22 @@ export default function HomeScreen() {
         </View>
 
         <Text style={[styles.sectionTitle, { color:T.muted }]}>RECENT ACTIVITY</Text>
-        {recentActivity.map(item => (
-          <View key={item.id} style={[styles.activityCard, { backgroundColor:T.card, borderColor:T.border }]}>
-            <View style={[styles.activityDot, { backgroundColor: item.isIn ? T.green : T.red }]} />
-            <View style={{ flex:1 }}>
-              <Text style={[styles.activityPlate,  { color:T.text }]}>{item.plate}</Text>
-              <Text style={[styles.activityAction, { color:T.muted }]}>{item.action}</Text>
-            </View>
-            <Text style={[styles.activityTime, { color:T.muted }]}>{item.time}</Text>
+        {activity.length === 0 ? (
+          <View style={{ padding: 20, alignItems: "center" }}>
+            <Text style={{ color: T.muted, fontSize: 13 }}>No activity yet</Text>
           </View>
-        ))}
+        ) : (
+          activity.map(item => (
+            <View key={item.id} style={[styles.activityCard, { backgroundColor:T.card, borderColor:T.border }]}>
+              <View style={[styles.activityDot, { backgroundColor: item.isIn ? T.green : T.red }]} />
+              <View style={{ flex:1 }}>
+                <Text style={[styles.activityPlate,  { color:T.text }]}>{item.plate}</Text>
+                <Text style={[styles.activityAction, { color:T.muted }]}>{item.action}</Text>
+              </View>
+              <Text style={[styles.activityTime, { color:T.muted }]}>{item.time}</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
   );

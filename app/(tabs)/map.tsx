@@ -4,11 +4,11 @@ import {
   Alert, Animated, Modal, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import { useParkingContext } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
 
-const CURRENT_USER = { name:"Ahmad Faiz", plate:"WXY 1234", isOKU:false };
 const CAMPUS = { lat:1.42945, lng:103.63628 };
-const AUTO_CHECKOUT_RADIUS_M = 500;
+const AUTO_CHECKOUT_RADIUS_M = 9999;
 const LOT_ORIGIN      = { lat:1.42945, lng:103.63628 };
 const SPOT_WIDTH_DEG  = 0.000023;
 const SPOT_HEIGHT_DEG = 0.000045;
@@ -37,11 +37,9 @@ function generateSpots(): ParkingSpot[] {
   }
   return spots;
 }
-const ALL_SPOTS = generateSpots();
 
-// ─── OKU Warning ─────────────────────────────────────────────────────
-function OKUWarningModal({ visible, onClose, onProceed, T }: {
-  visible:boolean; onClose:()=>void; onProceed:()=>void; T:any;
+function OKUWarningModal({ visible, onClose, onProceed, plate, T }: {
+  visible:boolean; onClose:()=>void; onProceed:()=>void; plate:string; T:any;
 }) {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -64,7 +62,7 @@ function OKUWarningModal({ visible, onClose, onProceed, T }: {
           <Text style={[styles.warningTitle,{color:T.red}]}>OKU Spot Warning</Text>
           <Text style={[styles.warningBody,{color:T.muted}]}>
             This spot is reserved for{" "}<Text style={{color:T.blue,fontWeight:"800"}}>registered OKU students</Text> only.{"\n\n"}
-            Your account <Text style={{color:T.red,fontWeight:"800"}}>({CURRENT_USER.plate})</Text> does not have OKU parking rights.{"\n\n"}
+            Your account <Text style={{color:T.red,fontWeight:"800"}}>({plate})</Text> does not have OKU parking rights.{"\n\n"}
             Parking here may result in a <Text style={{color:T.red,fontWeight:"800"}}>penalty or towing.</Text>
           </Text>
           <TouchableOpacity style={[styles.warningCloseBtn,{backgroundColor:T.green}]} onPress={onClose}>
@@ -79,7 +77,6 @@ function OKUWarningModal({ visible, onClose, onProceed, T }: {
   );
 }
 
-// ─── Spot Modal ───────────────────────────────────────────────────────
 function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
   spot:ParkingSpot|null; mySpotId:string|null;
   onClose:()=>void; onCheckIn:(s:ParkingSpot)=>void; onCheckOut:(s:ParkingSpot)=>void; T:any;
@@ -144,29 +141,40 @@ function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────
 export default function MapScreen() {
   const { theme: T } = useTheme();
-  const [spots,       setSpots]       = useState<ParkingSpot[]>(ALL_SPOTS);
+  const { vehicles, activeSession, checkIn: ctxCheckIn, checkOut: ctxCheckOut } = useParkingContext();
+
+  const currentPlate = vehicles[0]?.plate ?? "";
+  const isOKUUser    = vehicles[0]?.isOKU ?? false;
+  const mySpotId     = activeSession?.spotId ?? null;  // ← 从 context 读，不用 local state
+
+  const [spots,       setSpots]       = useState<ParkingSpot[]>(generateSpots);
   const [selected,    setSelected]    = useState<ParkingSpot|null>(null);
   const [filter,      setFilter]      = useState<"all"|"free"|"occupied">("all");
-  const [mySpotId,    setMySpotId]    = useState<string|null>(null);
   const [gpsStatus,   setGpsStatus]   = useState<"idle"|"scanning"|"found"|"outside">("idle");
   const [okuWarning,  setOkuWarning]  = useState(false);
   const [pendingSpot, setPendingSpot] = useState<ParkingSpot|null>(null);
   const [distFromCampus, setDistFromCampus] = useState<number|null>(null);
+
   const pulseAnim   = useRef(new Animated.Value(1)).current;
   const locationSub = useRef<Location.LocationSubscription|null>(null);
   const mySpotIdRef = useRef<string|null>(null);
-  const spotsRef    = useRef<ParkingSpot[]>(ALL_SPOTS);
   useEffect(()=>{ mySpotIdRef.current=mySpotId; },[mySpotId]);
-  useEffect(()=>{ spotsRef.current=spots; },[spots]);
 
+  // ✅ Fix 格子变大 bug
   useEffect(()=>{
-    if(mySpotId){ Animated.loop(Animated.sequence([
-      Animated.timing(pulseAnim,{toValue:1.3,duration:700,useNativeDriver:true}),
-      Animated.timing(pulseAnim,{toValue:1.0,duration:700,useNativeDriver:true}),
-    ])).start(); } else { pulseAnim.setValue(1); }
+    if(mySpotId){
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(pulseAnim,{toValue:1.3,duration:700,useNativeDriver:true}),
+        Animated.timing(pulseAnim,{toValue:1.0,duration:700,useNativeDriver:true}),
+      ]));
+      loop.start();
+      return ()=>{ loop.stop(); pulseAnim.setValue(1.0); };
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1.0);
+    }
   },[mySpotId]);
 
   useEffect(()=>{
@@ -174,6 +182,18 @@ export default function MapScreen() {
     else stopWatchingLocation();
     return ()=>stopWatchingLocation();
   },[mySpotId]);
+
+  // 同步 context session 到格子
+  useEffect(()=>{
+    if(activeSession){
+      setSpots(prev=>prev.map(s=>
+        s.id===activeSession.spotId
+          ? {...s,status:"occupied",plate:activeSession.plate,checkedIn:activeSession.checkedIn}
+          : s
+      ));
+      setGpsStatus("found");
+    }
+  },[activeSession]);
 
   async function startWatchingLocation(){
     const {status}=await Location.requestForegroundPermissionsAsync();
@@ -195,7 +215,8 @@ export default function MapScreen() {
 
   function doAutoCheckout(spotId:string){
     setSpots(prev=>prev.map(s=>s.id===spotId?{...s,status:"free",plate:undefined,checkedIn:undefined}:s));
-    setMySpotId(null); setGpsStatus("idle"); setDistFromCampus(null); stopWatchingLocation();
+    ctxCheckOut();
+    setGpsStatus("idle"); setDistFromCampus(null); stopWatchingLocation();
     Alert.alert("🚗 Auto Checked Out",`You have left the MDIS campus.\nSpot ${spotId} has been automatically freed.`,[{text:"OK"}]);
   }
 
@@ -211,7 +232,7 @@ export default function MapScreen() {
       const dist=distanceM(latitude,longitude,c.lat,c.lng);
       if(dist<minDist){minDist=dist;closest=spot;}
     }
-    if(closest&&minDist<4){ setMySpotId(closest.id); setGpsStatus("found"); setSelected(closest); }
+    if(closest&&minDist<4){ setGpsStatus("found"); setSelected(closest); }
     else {
       setGpsStatus("outside");
       Alert.alert("📍 Not in Parking Lot",`Nearest spot: ${Math.round(minDist)}m away`);
@@ -222,14 +243,14 @@ export default function MapScreen() {
   function handleCheckIn(spot:ParkingSpot){
     setSelected(null);
     if(mySpotId){ Alert.alert("Already Checked In",`You are at Spot ${mySpotId}. Check out first.`); return; }
-    if(spot.type==="oku"&&!CURRENT_USER.isOKU){ setPendingSpot(spot); setOkuWarning(true); return; }
+    if(spot.type==="oku"&&!isOKUUser){ setPendingSpot(spot); setOkuWarning(true); return; }
     confirmCheckIn(spot);
   }
   function confirmCheckIn(spot:ParkingSpot){
     const timeNow=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-    setSpots(prev=>prev.map(s=>s.id===spot.id?{...s,status:"occupied",plate:CURRENT_USER.plate,checkedIn:timeNow}:s));
-    setMySpotId(spot.id); setGpsStatus("found");
-    Alert.alert("✅ Checked In!",`Parked at Spot ${spot.id} · ${timeNow}\n\n📍 GPS monitoring started.\nAuto checkout when you leave campus.`);
+    setSpots(prev=>prev.map(s=>s.id===spot.id?{...s,status:"occupied",plate:currentPlate,checkedIn:timeNow}:s));
+    ctxCheckIn(spot.id, currentPlate);  // ← 写入 context，同时写 activity
+    Alert.alert("✅ Checked In!",`Parked at Spot ${spot.id} · ${timeNow}\n\n📍 GPS monitoring started.`);
   }
   function handleCheckOut(spot:ParkingSpot){
     setSelected(null);
@@ -237,7 +258,8 @@ export default function MapScreen() {
       {text:"Cancel",style:"cancel"},
       {text:"Check Out",style:"destructive",onPress:()=>{
         setSpots(prev=>prev.map(s=>s.id===spot.id?{...s,status:"free",plate:undefined,checkedIn:undefined}:s));
-        setMySpotId(null); setGpsStatus("idle"); setDistFromCampus(null);
+        ctxCheckOut();  // ← 写入 context，同时写 activity
+        setGpsStatus("idle"); setDistFromCampus(null);
         Alert.alert("👋 Checked Out!",`Spot ${spot.id} is now free.\nDrive safely!`);
       }},
     ]);
@@ -271,7 +293,6 @@ export default function MapScreen() {
       )}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={[styles.pageTitle,{color:T.text}]}>Parking Map</Text>
@@ -282,7 +303,6 @@ export default function MapScreen() {
           </View>
         </View>
 
-        {/* Auto checkout banner */}
         {mySpotId&&(
           <View style={[styles.autoBanner,{backgroundColor:T.accent+"12",borderColor:T.accent+"44"}]}>
             <Text style={styles.autoBannerIcon}>📡</Text>
@@ -303,7 +323,6 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* GPS button */}
         <TouchableOpacity style={[styles.gpsBtn,
           gpsStatus==="scanning"&&{borderColor:T.orange+"55",backgroundColor:T.orange+"12"},
           gpsStatus==="found"   &&{borderColor:T.green +"55",backgroundColor:T.green +"12"},
@@ -313,7 +332,7 @@ export default function MapScreen() {
           <Text style={styles.gpsBtnIcon}>{gpsStatus==="scanning"?"🔄":gpsStatus==="found"?"📍":gpsStatus==="outside"?"❌":"📍"}</Text>
           <View style={{flex:1}}>
             <Text style={[styles.gpsBtnTitle,{
-              color:gpsStatus==="found"?"green":gpsStatus==="outside"?T.red:gpsStatus==="scanning"?T.orange:T.accent,
+              color:gpsStatus==="found"?T.green:gpsStatus==="outside"?T.red:gpsStatus==="scanning"?T.orange:T.accent,
             }]}>
               {gpsStatus==="scanning"?"Scanning GPS...":gpsStatus==="found"?`Parked at ${mySpotId}`:gpsStatus==="outside"?"Not in parking lot":"Find My Parking Spot"}
             </Text>
@@ -322,13 +341,12 @@ export default function MapScreen() {
             </Text>
           </View>
           {mySpotId&&(
-            <TouchableOpacity onPress={()=>{setMySpotId(null);setGpsStatus("idle");setDistFromCampus(null);}} style={styles.gpsClearBtn}>
+            <TouchableOpacity onPress={()=>{ ctxCheckOut(); setGpsStatus("idle"); setDistFromCampus(null); }} style={styles.gpsClearBtn}>
               <Text style={[styles.gpsClearText,{color:T.muted}]}>✕</Text>
             </TouchableOpacity>
           )}
         </TouchableOpacity>
 
-        {/* Stats */}
         <View style={styles.statsRow}>
           {[
             {label:"Free",    val:freeCount,     color:T.green },
@@ -343,7 +361,6 @@ export default function MapScreen() {
           ))}
         </View>
 
-        {/* Filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
           {[
             {key:"all",      label:"All Spots",color:T.accent},
@@ -359,8 +376,6 @@ export default function MapScreen() {
           ))}
         </ScrollView>
 
-        {/* Grid */}
-        {/* gridCard 用 90% 透明度，让背景装饰轻微透出 */}
         <View style={[styles.gridCard,{backgroundColor:T.card+"E8",borderColor:T.border}]}>
           <View style={styles.topRow}>
             <Text style={[styles.gridTitle,{color:T.muted}]}>🅿️ MDIS Student Parking</Text>
@@ -379,21 +394,31 @@ export default function MapScreen() {
                   const color=spotColor(spot,isMySpot);
                   const dim=isDimmed(spot);
                   const isOKU=spot.type==="oku";
+
+                  // ✅ Fix 格子变大：spotWrapper 固定占位，scale 在里层
                   if(isMySpot) return (
-                    <TouchableOpacity key={spot.id} onPress={()=>setSelected(spot)} activeOpacity={0.7}>
-                      <Animated.View style={[styles.spot,{backgroundColor:T.yellow+"35",borderColor:T.yellow,borderWidth:2,transform:[{scale:pulseAnim}]}]}>
-                        <Text style={{fontSize:11}}>📍</Text>
+                    <TouchableOpacity key={spot.id} onPress={()=>setSelected(spot)} activeOpacity={0.7}
+                      style={styles.spotWrapper}>
+                      <Animated.View style={[styles.spot,{
+                        backgroundColor:T.yellow+"35",
+                        borderColor:T.yellow,
+                        borderWidth:2,
+                        transform:[{scale:pulseAnim}],
+                      }]}>
+                        <Text style={{fontSize:9}}>📍</Text>
                       </Animated.View>
                     </TouchableOpacity>
                   );
                   return (
                     <TouchableOpacity key={spot.id} onPress={()=>setSelected(spot)} activeOpacity={0.7}
-                      style={[styles.spot,isOKU&&styles.okuSpot,{
+                      style={styles.spotWrapper}>
+                      <View style={[styles.spot,isOKU&&styles.okuSpot,{
                         backgroundColor:dim?color+"0D":color+"28",
                         borderColor:dim?color+"25":color+"99",
                         opacity:dim?0.3:1,
                       }]}>
-                      <Text style={[styles.spotText,{color:dim?color+"60":color}]}>{isOKU?"♿":col+1}</Text>
+                        <Text style={[styles.spotText,{color:dim?color+"60":color}]}>{isOKU?"♿":col+1}</Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -408,7 +433,6 @@ export default function MapScreen() {
           </View>
         </View>
 
-        {/* Legend */}
         <View style={styles.legend}>
           {[[T.green,"Free"],[T.red,"Occupied"],[T.blue,"OKU"],[T.yellow,"My Spot"]].map(([color,label])=>(
             <View key={label as string} style={styles.legendItem}>
@@ -422,7 +446,7 @@ export default function MapScreen() {
 
       <SpotModal spot={selected} mySpotId={mySpotId} T={T}
         onClose={()=>setSelected(null)} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut}/>
-      <OKUWarningModal visible={okuWarning} T={T}
+      <OKUWarningModal visible={okuWarning} T={T} plate={currentPlate}
         onClose={()=>{setOkuWarning(false);setPendingSpot(null);}}
         onProceed={()=>{setOkuWarning(false);if(pendingSpot)confirmCheckIn(pendingSpot);setPendingSpot(null);}}/>
     </View>
@@ -431,12 +455,9 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   screen:{flex:1},
-  // ScrollView 必须透明，背景装饰才能透出来
   scroll:{padding:20,paddingTop:56,paddingBottom:100,backgroundColor:"transparent"},
-  // 背景装饰层，absolute 铺满全屏，zIndex:-1 确保在内容下面
   patternWrap:{position:"absolute",top:0,left:0,right:0,bottom:0,flexDirection:"row",flexWrap:"wrap",padding:16,gap:18,zIndex:-1},
-  // 字符稍大，颜色在 ThemeContext 里控制透明度
-  patternChar:{fontSize:32, opacity:1},
+  patternChar:{fontSize:32,opacity:1},
   header:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:16},
   pageTitle:{fontSize:24,fontWeight:"800",letterSpacing:-0.5}, subtitle:{fontSize:13},
   logoBadge:{borderWidth:1,borderRadius:10,paddingHorizontal:12,paddingVertical:5},
@@ -454,7 +475,6 @@ const styles = StyleSheet.create({
   filterRow:{marginBottom:14},
   filterPill:{borderWidth:1,borderRadius:999,paddingHorizontal:16,paddingVertical:7,marginRight:8},
   filterText:{fontSize:13,fontWeight:"600"},
-  // gridCard 用半透明，让背景装饰透出来
   gridCard:{borderWidth:1,borderRadius:20,padding:16,marginBottom:16,backgroundColor:"transparent"},
   topRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:14},
   gridTitle:{fontSize:11,fontWeight:"700",letterSpacing:0.5},
@@ -463,7 +483,9 @@ const styles = StyleSheet.create({
   rowWrap:{flexDirection:"row",alignItems:"center",marginBottom:8},
   rowLabel:{fontSize:10,width:22,fontWeight:"600"},
   rowSpots:{flexDirection:"row",gap:5,flex:1},
-  spot:{flex:1,aspectRatio:0.7,borderRadius:6,borderWidth:1,justifyContent:"center",alignItems:"center"},
+  // ✅ spotWrapper 固定占位，spot 在里面缩放
+  spotWrapper:{flex:1,aspectRatio:0.7,justifyContent:"center",alignItems:"center"},
+  spot:{width:"100%",height:"100%",borderRadius:6,borderWidth:1,justifyContent:"center",alignItems:"center"},
   okuSpot:{borderWidth:2}, spotText:{fontSize:9,fontWeight:"800"},
   bottomRow:{flexDirection:"row",justifyContent:"flex-end",marginTop:10},
   entranceBadge:{borderWidth:1,borderRadius:8,paddingHorizontal:10,paddingVertical:5},

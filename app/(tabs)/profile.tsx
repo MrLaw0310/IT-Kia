@@ -15,6 +15,7 @@ import {
   Alert, Image, Modal, ScrollView, StyleSheet,
   Switch, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { useParkingContext } from "../../utils/ParkingContext";
 import { THEMES, ThemeKey, useTheme } from "../../utils/ThemeContext";
 
 // ─── 常量 ─────────────────────────────────────────────────────────────
@@ -32,14 +33,6 @@ const STUDENT = {
   isOKU:  false,
 };
 
-// ─── 车辆类型 ─────────────────────────────────────────────────────────
-interface Vehicle {
-  id:      string;
-  plate:   string;
-  model:   string;
-  isPaid:  boolean;
-  isOKU:   boolean;
-}
 
 // ═════════════════════════════════════════════════════════════════════
 // 🎨 主题选择弹窗
@@ -350,15 +343,13 @@ function SettingRow({ icon, label, sub, onPress, right }: {
 // ═════════════════════════════════════════════════════════════════════
 export default function ProfileScreen() {
   const { theme: T, themeKey } = useTheme();
+  const { vehicles, setVehicles } = useParkingContext();  // ← 加这行
 
   // ── 状态管理 ───────────────────────────────────────────────────────
   const [avatarUri,    setAvatarUri]    = useState<string | null>(null);
   const [avatarModal,  setAvatarModal]  = useState(false);
-  const [themeModal,   setThemeModal]   = useState(false);  // 主题弹窗开关
-  const [vehicles,     setVehicles]     = useState<Vehicle[]>([
-    { id:"1", plate:"WXY 1234", model:"Honda Civic (White)",  isPaid:true,  isOKU:false },
-    { id:"2", plate:"JHB 5678", model:"Toyota Vios (Silver)", isPaid:true,  isOKU:false },
-  ]);
+  const [themeModal,   setThemeModal]   = useState(false);
+  // ← 删掉原来的 vehicles useState
   const [vehicleModal, setVehicleModal] = useState(false);
   const [editTarget,   setEditTarget]   = useState<Vehicle | undefined>(undefined);
   const [notifP,       setNotifP]       = useState(true);
@@ -752,3 +743,4 @@ const styles = StyleSheet.create({
 
 // ─── 缺少的 Theme 类型（在这个文件里用到）────────────────────────────
 type Theme = import("../../utils/ThemeContext").Theme;
+type Vehicle = import("../../utils/ParkingContext").Vehicle;
