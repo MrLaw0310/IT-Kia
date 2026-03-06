@@ -7,9 +7,6 @@ import {
 import { useParkingContext } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
 
-const TOTAL_SPOTS     = 60;
-const AVAILABLE_SPOTS = 23;
-const OCCUPIED_SPOTS  = TOTAL_SPOTS - AVAILABLE_SPOTS;
 const MDIS_LAT = 1.43364;
 const MDIS_LNG = 103.615175;
 
@@ -41,7 +38,11 @@ function AvailabilityRing({ available, total, T }: { available:number; total:num
 }
 
 export default function HomeScreen() {
-  const { activity } = useParkingContext();
+  const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal } = useParkingContext();
+  // ⭐ 这些数字直接从 ParkingContext 读，和 map 页完全同步
+  const TOTAL_SPOTS     = totalNormal + okuTotal;  // ← 普通位 + OKU 位
+  const AVAILABLE_SPOTS = freeCount;
+  const OCCUPIED_SPOTS  = occCount;
   const { theme: T } = useTheme();
   const router    = useRouter();
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -121,7 +122,7 @@ export default function HomeScreen() {
           {[
             { label:"Free",     val:AVAILABLE_SPOTS, color:T.green  },
             { label:"Occupied", val:OCCUPIED_SPOTS,  color:T.red    },
-            { label:"OKU",      val:2,               color:T.orange },
+            { label:"OKU",      val:okuTotal,         color:T.orange },
             { label:"Total",    val:TOTAL_SPOTS,     color:T.accent },
           ].map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor:T.card, borderColor:s.color+"44" }]}>
@@ -132,21 +133,27 @@ export default function HomeScreen() {
         </Animated.View>
 
         <Text style={[styles.sectionTitle, { color:T.muted }]}>QUICK ACTIONS</Text>
-        <View style={styles.actionsGrid}>
-          {[
+        {/* 2×2 网格：用两行 View 代替 flexWrap，确保每行精确 50/50 */}
+        {[
+          [
             { icon:"🗺️", label:"View Map",   bg:T.accent, textColor:"white", onPress:()=>router.push("/(tabs)/map" as any) },
             { icon:"📷", label:"Scan Plate", bg:T.card,   textColor:T.text,  onPress:()=>router.push("/camera" as any) },
+          ],[
             { icon:"🕐", label:"History",    bg:T.card,   textColor:T.text,  onPress:()=>router.push("/(tabs)/history" as any) },
             { icon:"🧭", label:"Navigate",   bg:T.card,   textColor:T.text,  onPress:openMapsToMDIS },
-          ].map(a => (
-            <TouchableOpacity key={a.label}
-              style={[styles.actionBtn, { backgroundColor:a.bg, borderWidth:a.bg===T.card?1:0, borderColor:T.border }]}
-              onPress={a.onPress} activeOpacity={0.8}>
-              <Text style={styles.actionIcon}>{a.icon}</Text>
-              <Text style={[styles.actionText, { color:a.textColor }]}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+          ]
+        ].map((row, ri) => (
+          <View key={ri} style={styles.actionsRow}>
+            {row.map(a => (
+              <TouchableOpacity key={a.label}
+                style={[styles.actionBtn, { backgroundColor:a.bg, borderWidth:a.bg===T.card?1:0, borderColor:T.border }]}
+                onPress={a.onPress} activeOpacity={0.8}>
+                <Text style={styles.actionIcon}>{a.icon}</Text>
+                <Text style={[styles.actionText, { color:a.textColor }]}>{a.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
 
         <Text style={[styles.sectionTitle, { color:T.muted }]}>RECENT ACTIVITY</Text>
         {activity.length === 0 ? (
@@ -206,8 +213,8 @@ const styles = StyleSheet.create({
   statNumber:{ fontSize:22, fontWeight:"900" },
   statLabel: { fontSize:10, marginTop:2 },
   sectionTitle:{ fontSize:11, letterSpacing:1.5, marginBottom:10 },
-  actionsGrid: { flexDirection:"row", flexWrap:"wrap", gap:10, marginBottom:24 },
-  actionBtn:   { width:"47%", borderRadius:14, paddingVertical:16, alignItems:"center", gap:6 },
+  actionsRow:  { flexDirection:"row", gap:10, marginBottom:10 },
+  actionBtn:   { flex:1, borderRadius:14, paddingVertical:16, alignItems:"center", gap:6 },
   actionIcon:  { fontSize:24 },
   actionText:  { fontWeight:"700", fontSize:13 },
   activityCard:  { flexDirection:"row", alignItems:"center", borderWidth:1, borderRadius:12, padding:14, marginBottom:8, gap:12 },

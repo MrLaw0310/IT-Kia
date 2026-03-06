@@ -5,7 +5,7 @@ import { ThemeProvider, useTheme } from "../utils/ThemeContext";
 
 function InnerLayout() {
   const { theme } = useTheme();
-  const isDark = theme.key === "tech" || theme.key === "ancient";
+  const isDark = theme.key === "tech" || theme.key === "mystic";
 
   return (
     <>

@@ -1,17 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // utils/ThemeContext.tsx
 //
-// 全局主题系统 — 4 种风格
-// 颜色参考真实图片重新配色：
-//   古风  → 水墨画：薄雾白底 + 青墨色 + 淡红点缀
-//   温柔  → 梦幻薰衣草：紫粉云雾，柔和空灵
-//   日系  → 樱花：奶白底 + 樱花粉 + 鸟居红 + 富士蓝
+// 全局主题系统 — 5 种风格
+// Tech (default) / Nordic / Vintage / Mystic / Autumn
 // ─────────────────────────────────────────────────────────────────────────────
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type ThemeKey = "tech" | "gentle" | "ancient" | "japanese";
+export type ThemeKey = "tech" | "nordic" | "vintage" | "mystic" | "autumn";
 
 export interface Theme {
   key:           ThemeKey;
@@ -57,69 +54,106 @@ export const THEMES: Record<ThemeKey, Theme> = {
     // 科技风无背景装饰
   },
 
-  // ── 2. 温柔风 ─────────────────────────────────────────────────────
-  // 参考图：梦幻薰衣草天空，紫粉云雾，空灵柔和
-  // 主色：#C8BFF0（薰衣草紫）底色偏淡紫白
-  gentle: {
-    key: "gentle", name: "温柔", emoji: "🌙", desc: "Lavender dream · Soft",
-    bg:        "#F0EDF8",   // 极淡薰衣草白
-    card:      "#FAFAFF",   // 近白略带紫调
-    border:    "#DDD5F0",   // 柔紫边框
-    accent:    "#8B72D4",   // 薰衣草紫（主按钮）
-    green:     "#72B89A",   // 柔绿
-    red:       "#D47290",   // 玫瑰粉红（不刺眼）
-    orange:    "#D4976A",   // 暖橙
-    blue:      "#7A9FD4",
-    yellow:    "#E8A830",   // 我的车位：琥珀黄   // 天蓝
-    text:      "#2E2445",   // 深紫灰正文
-    muted:     "#9B90BB",   // 淡紫次要文字
-    tabBar:    "#F5F0FF",   // 淡紫 Tab 栏
-    tabBorder: "#DDD5F0",
-    pattern:      "✦",                        // 星点装饰
-    patternColor: "rgba(139,114,212,0.07)",    // 极淡紫
+  // ══════════════════════════════════════════════════════════════════
+  // 配色原则 6:3:1（参考丁香医生 / ofo 的三色层次）
+  //
+  //  6 → bg     主背景色（大面积铺底，最轻的颜色）
+  //  3 → card   配合色（卡片/区块的主体颜色，跟背景搭但有层次感）
+  //  1 → accent 点缀色（按钮/徽章/高亮，跳出背景的对比色）
+  //
+  //  例子：
+  //    丁香医生 → 6=淡紫白 / 3=紫色 / 1=橙色
+  //    ofo     → 6=米白  / 3=黄色 / 1=红色
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── 2. Nordic ─────────────────────────────────────────────────────
+  //  6 背景: #F2F4F5  冷雾白（大面积铺底）
+  //  3 卡片: #B8CDD6  灰蓝色（卡片/区块主体，30% 面积）
+  //  1 点缀: #1A3D4F  深海军蓝（按钮/高亮，10% 跳出）
+  nordic: {
+    key: "nordic", name: "Nordic", emoji: "🌊", desc: "Nordic coast · Cool grey · Calm",
+    bg:        "#F2F4F5",   // 6 ── 主背景（冷雾白，大面积）
+    card:      "#B8CDD6",   // 3 ── 卡片色（灰蓝，独立配合色）
+    border:    "#9ABAC6",   // 边框（卡片色深一阶）
+    accent:    "#1A3D4F",   // 1 ── 点缀色（深海军蓝，对比跳出）
+    green:     "#2A6040",
+    red:       "#803038",
+    orange:    "#806040",
+    blue:      "#2A5878",
+    yellow:    "#706020",
+    text:      "#0A2030",   // 深色正文（浅底配深字）
+    muted:     "#5A7888",   // 次要文字（卡片色调）
+    tabBar:    "#F2F4F5",   // Tab 栏跟主背景一致
+    tabBorder: "#9ABAC6",
   },
 
-  // ── 3. 古风 ───────────────────────────────────────────────────────
-  // 参考图：水墨山水画，薄雾白纸底，青墨色建筑，淡朱红点缀
-  // 像宣纸上的水彩：不是黑不是白，是那种泛黄的宣纸+青墨
-  ancient: {
-    key: "ancient", name: "古风", emoji: "🏯", desc: "Ink wash · Classical",
-    bg:        "#F4EFE6",   // 宣纸米白
-    card:      "#FBF7F0",   // 略白的纸色
-    border:    "#C8B89A",   // 淡墨褐边框
-    accent:    "#4A7C7E",   // 青墨色（主色）
-    green:     "#5A8A6A",   // 青绿
-    red:       "#B84040",   // 朱砂红（点缀）
-    orange:    "#C87840",   // 赭石橙
-    blue:      "#4A6A8A",
-    yellow:    "#C9A84C",   // 我的车位：古铜金   // 靛青蓝
-    text:      "#2A2018",   // 深墨色正文
-    muted:     "#8A7860",   // 淡墨次要文字
-    tabBar:    "#EDE6D8",   // 宣纸 Tab 栏
-    tabBorder: "#C8B89A",
-    pattern:      "水",                        // 水字装饰（水墨感）
-    patternColor: "rgba(74,124,126,0.05)",     // 极淡青墨
+  // ── 3. Vintage ───────────────────────────────────────────────────
+  //  6 背景: #F5F0E6  宣纸米白（大面积铺底）
+  //  3 卡片: #C8B080  暖金褐（卡片/区块主体，30% 面积）
+  //  1 点缀: #2C1A08  深墨棕（按钮/高亮，10% 跳出）
+  vintage: {
+    key: "vintage", name: "Vintage", emoji: "☕", desc: "Vintage café · Warm kraft · Earthy",
+    bg:        "#F5F0E6",   // 6 ── 主背景（宣纸米白，大面积）
+    card:      "#C8B080",   // 3 ── 卡片色（暖金褐，独立配合色）
+    border:    "#B09060",   // 边框（卡片色深一阶）
+    accent:    "#2C1A08",   // 1 ── 点缀色（深墨棕，对比跳出）
+    green:     "#385840",
+    red:       "#782828",
+    orange:    "#785020",
+    blue:      "#304858",
+    yellow:    "#685010",
+    text:      "#180A00",   // 深墨正文
+    muted:     "#786040",   // 次要文字（卡片色调）
+    tabBar:    "#F5F0E6",   // Tab 栏跟主背景一致
+    tabBorder: "#B09060",
+    pattern:      "墨",
+    patternColor: "rgba(44,26,8,0.05)",
   },
 
-  // ── 4. 日系风 ─────────────────────────────────────────────────────
-  // 参考图：樱花树+鸟居+富士山，奶白底，樱花粉，鸟居朱红
-  japanese: {
-    key: "japanese", name: "日系", emoji: "⛩️", desc: "Sakura · Torii · Fuji",
-    bg:        "#FEF6F6",   // 樱花奶白
-    card:      "#FFFFFF",   // 纯白卡片
-    border:    "#F0D0D5",   // 淡樱花粉边框
-    accent:    "#C94050",   // 鸟居朱红（主色）
-    green:     "#6A9E78",   // 嫩竹绿
-    red:       "#C94050",   // 朱红
-    orange:    "#D4834A",   // 暖橙
-    blue:      "#5880A8",
-    yellow:    "#D4A030",   // 我的车位：灯笼金   // 富士山蓝灰
-    text:      "#2A1018",   // 深墨正文
-    muted:     "#A87888",   // 粉灰次要文字
-    tabBar:    "#FFF0F2",   // 淡樱花粉 Tab 栏
-    tabBorder: "#F0D0D5",
-    pattern:      "花",                        // 花字装饰
-    patternColor: "rgba(201,64,80,0.05)",      // 极淡朱红
+  // ── 4. Mystic ───────────────────────────────────────────────────
+  //  6 背景: #0E0E1C  极深夜蓝（大面积铺底）
+  //  3 卡片: #2E2060  深紫（卡片/区块主体，30% 面积）
+  //  1 点缀: #D0B8FF  亮薰衣草（按钮/高亮，10% 跳出）
+  mystic: {
+    key: "mystic", name: "Mystic", emoji: "🌌", desc: "Deep space · Midnight purple · Mystic",
+    bg:        "#0E0E1C",   // 6 ── 主背景（极深夜蓝，大面积）
+    card:      "#2E2060",   // 3 ── 卡片色（深紫，独立配合色）
+    border:    "#3E3070",   // 边框（卡片色亮一阶）
+    accent:    "#D0B8FF",   // 1 ── 点缀色（亮薰衣草，对比跳出）
+    green:     "#48D880",
+    red:       "#E05050",
+    orange:    "#E09848",
+    blue:      "#88A8FF",
+    yellow:    "#E0C848",
+    text:      "#F0ECFF",   // 亮色正文（深底配浅字）
+    muted:     "#9888C8",   // 次要文字（卡片色调偏亮）
+    tabBar:    "#0E0E1C",   // Tab 栏跟主背景一致
+    tabBorder: "#3E3070",
+    pattern:      "✦",
+    patternColor: "rgba(208,184,255,0.08)",
+  },
+
+  // ── 5. Autumn ───────────────────────────────────────────────────
+  //  6 背景: #FFF4EC  奶油暖白（大面积铺底）
+  //  3 卡片: #FFBB88  蜜桃橙（卡片/区块主体，30% 面积）
+  //  1 点缀: #802000  深砖红（按钮/高亮，10% 跳出）
+  autumn: {
+    key: "autumn", name: "Autumn", emoji: "🍂", desc: "Autumn sunset · Peach · Cozy",
+    bg:        "#FFF4EC",   // 6 ── 主背景（奶油暖白，大面积）
+    card:      "#FFBB88",   // 3 ── 卡片色（蜜桃橙，独立配合色）
+    border:    "#F0A060",   // 边框（卡片色深一阶）
+    accent:    "#802000",   // 1 ── 点缀色（深砖红，对比跳出）
+    green:     "#306030",
+    red:       "#902020",
+    orange:    "#904818",
+    blue:      "#304870",
+    yellow:    "#905010",
+    text:      "#200800",   // 深暖棕正文
+    muted:     "#906040",   // 次要文字（卡片色调）
+    tabBar:    "#FFF4EC",   // Tab 栏跟主背景一致
+    tabBorder: "#F0A060",
+    pattern:      "☀",
+    patternColor: "rgba(128,32,0,0.05)",
   },
 };
 

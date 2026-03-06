@@ -1,7 +1,7 @@
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert, Animated, Modal, ScrollView,
+  Alert, Animated, AppState, Modal, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import { useParkingContext } from "../../utils/ParkingContext";
@@ -29,14 +29,6 @@ function distanceM(lat1:number,lng1:number,lat2:number,lng2:number){
 type SpotStatus = "free"|"occupied"; type SpotType = "normal"|"oku";
 interface ParkingSpot { id:string; row:number; col:number; status:SpotStatus; type:SpotType; plate?:string; checkedIn?:string; }
 
-function generateSpots(): ParkingSpot[] {
-  const spots: ParkingSpot[] = [];
-  for(let row=0;row<7;row++) for(let col=0;col<10;col++){
-    const isOKU = row===0 && col<2;
-    spots.push({ id:isOKU?`OKU-${col+1}`:`R${row+1}-${col+1}`, row, col, type:isOKU?"oku":"normal", status:"free" });
-  }
-  return spots;
-}
 
 function OKUWarningModal({ visible, onClose, onProceed, plate, T }: {
   visible:boolean; onClose:()=>void; onProceed:()=>void; plate:string; T:any;
@@ -77,10 +69,14 @@ function OKUWarningModal({ visible, onClose, onProceed, plate, T }: {
   );
 }
 
-function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
-  spot:ParkingSpot|null; mySpotId:string|null;
+function SpotModal({ spotId, onClose, onCheckIn, onCheckOut, T }: {
+  spotId:string|null;
   onClose:()=>void; onCheckIn:(s:ParkingSpot)=>void; onCheckOut:(s:ParkingSpot)=>void; T:any;
 }) {
+  // 每次渲染都从 context 拿最新数据，不用 stale snapshot
+  const { spots, activeSession } = useParkingContext();
+  const mySpotId = activeSession?.spotId ?? null;
+  const spot = spots.find(s => s.id === spotId) ?? null;
   if(!spot) return null;
   const isMySpot = spot.id===mySpotId;
   const isOKU    = spot.type==="oku";
@@ -143,13 +139,13 @@ function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
 
 export default function MapScreen() {
   const { theme: T } = useTheme();
-  const { vehicles, activeSession, checkIn: ctxCheckIn, checkOut: ctxCheckOut } = useParkingContext();
+  const { vehicles, activeSession, checkIn: ctxCheckIn, checkOut: ctxCheckOut, spots, setSpots } = useParkingContext();
 
   const currentPlate = vehicles[0]?.plate ?? "";
   const isOKUUser    = vehicles[0]?.isOKU ?? false;
   const mySpotId     = activeSession?.spotId ?? null;  // ← 从 context 读，不用 local state
 
-  const [spots,       setSpots]       = useState<ParkingSpot[]>(generateSpots);
+  // spots / setSpots 现在来自 ParkingContext，和 home 页共享
   const [selected,    setSelected]    = useState<ParkingSpot|null>(null);
   const [filter,      setFilter]      = useState<"all"|"free"|"occupied">("all");
   const [gpsStatus,   setGpsStatus]   = useState<"idle"|"scanning"|"found"|"outside">("idle");
@@ -183,17 +179,17 @@ export default function MapScreen() {
     return ()=>stopWatchingLocation();
   },[mySpotId]);
 
-  // 同步 context session 到格子
+  // ── GPS 重试：App 回到前台时，如果有 session 但 GPS 没在跑，重新尝试 ──
   useEffect(()=>{
-    if(activeSession){
-      setSpots(prev=>prev.map(s=>
-        s.id===activeSession.spotId
-          ? {...s,status:"occupied",plate:activeSession.plate,checkedIn:activeSession.checkedIn}
-          : s
-      ));
-      setGpsStatus("found");
-    }
-  },[activeSession]);
+    const sub = AppState.addEventListener("change", state => {
+      if(state === "active" && mySpotId && !locationSub.current){
+        startWatchingLocation();  // ← 前台 + 有 session + GPS 没跑 → 重启
+      }
+    });
+    return () => sub.remove();
+  },[mySpotId]);
+
+  // spots 同步已在 ParkingContext useEffect[activeSession] 处理，这里不重复
 
   async function startWatchingLocation(){
     const {status}=await Location.requestForegroundPermissionsAsync();
@@ -221,9 +217,19 @@ export default function MapScreen() {
   }
 
   async function handleFindMySpot(){
+    // ── 已经 check in → 直接高亮自己的位，不重新扫描 ──
+    if(mySpotId){
+      const mySpot = spots.find(s=>s.id===mySpotId);
+      if(mySpot){ setSelected(mySpot); setGpsStatus("found"); }
+      return;
+    }
+    // ── 没有 session → 正常 GPS 扫描 ──
     setGpsStatus("scanning");
     const {status}=await Location.requestForegroundPermissionsAsync();
-    if(status!=="granted"){ Alert.alert("Location Required","Please allow location access."); setGpsStatus("idle"); return; }
+    if(status!=="granted"){
+      Alert.alert("Location Required","Please allow location access.");
+      setGpsStatus("idle"); return;
+    }
     const loc=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.High});
     const {latitude,longitude}=loc.coords;
     let closest:ParkingSpot|null=null, minDist=Infinity;
@@ -241,25 +247,25 @@ export default function MapScreen() {
   }
 
   function handleCheckIn(spot:ParkingSpot){
-    setSelected(null);
     if(mySpotId){ Alert.alert("Already Checked In",`You are at Spot ${mySpotId}. Check out first.`); return; }
-    if(spot.type==="oku"&&!isOKUUser){ setPendingSpot(spot); setOkuWarning(true); return; }
+    if(spot.type==="oku"&&!isOKUUser){ setSelected(null); setPendingSpot(spot); setOkuWarning(true); return; }
     confirmCheckIn(spot);
   }
   function confirmCheckIn(spot:ParkingSpot){
     const timeNow=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-    setSpots(prev=>prev.map(s=>s.id===spot.id?{...s,status:"occupied",plate:currentPlate,checkedIn:timeNow}:s));
-    ctxCheckIn(spot.id, currentPlate);  // ← 写入 context，同时写 activity
+    ctxCheckIn(spot.id, currentPlate);  // ParkingContext.checkIn 内部直接 setSpots
+    setGpsStatus("found");  // 锁定状态，表示已停好
     Alert.alert("✅ Checked In!",`Parked at Spot ${spot.id} · ${timeNow}\n\n📍 GPS monitoring started.`);
   }
   function handleCheckOut(spot:ParkingSpot){
-    setSelected(null);
     Alert.alert("🚗 Check Out",`Leave Spot ${spot.id}?`,[
       {text:"Cancel",style:"cancel"},
       {text:"Check Out",style:"destructive",onPress:()=>{
-        setSpots(prev=>prev.map(s=>s.id===spot.id?{...s,status:"free",plate:undefined,checkedIn:undefined}:s));
-        ctxCheckOut();  // ← 写入 context，同时写 activity
-        setGpsStatus("idle"); setDistFromCampus(null);
+        ctxCheckOut();        // context 内部处理 spots + session + activity
+        setSelected(null);    // 关弹窗
+        setGpsStatus("idle");
+        setDistFromCampus(null);
+        stopWatchingLocation();
         Alert.alert("👋 Checked Out!",`Spot ${spot.id} is now free.\nDrive safely!`);
       }},
     ]);
@@ -341,8 +347,25 @@ export default function MapScreen() {
             </Text>
           </View>
           {mySpotId&&(
-            <TouchableOpacity onPress={()=>{ ctxCheckOut(); setGpsStatus("idle"); setDistFromCampus(null); }} style={styles.gpsClearBtn}>
-              <Text style={[styles.gpsClearText,{color:T.muted}]}>✕</Text>
+            <TouchableOpacity
+              onPress={()=>{
+                Alert.alert("🚗 Check Out", `Leave Spot ${mySpotId}?`,[
+                  {text:"Cancel", style:"cancel"},
+                  {text:"Check Out", style:"destructive", onPress:()=>{
+                    const sid = mySpotId;
+                    setSpots(prev=>prev.map(s=>
+                      s.id===sid ? {...s,status:"free",plate:undefined,checkedIn:undefined} : s
+                    ));
+                    ctxCheckOut();
+                    setGpsStatus("idle");
+                    setDistFromCampus(null);
+                    stopWatchingLocation();
+                    Alert.alert("👋 Checked Out!",`Spot ${sid} is now free.\nDrive safely!`);
+                  }},
+                ]);
+              }}
+              style={[styles.gpsClearBtn, {backgroundColor: T.red+"22", borderColor: T.red+"55", borderWidth:1}]}>
+              <Text style={[styles.gpsClearText,{color:T.red, fontWeight:"800", fontSize:11}]}>🚗 Out</Text>
             </TouchableOpacity>
           )}
         </TouchableOpacity>
@@ -444,7 +467,7 @@ export default function MapScreen() {
         <Text style={[styles.hint,{color:T.muted}]}>Tap any spot to check in · Tap 📍 to check out</Text>
       </ScrollView>
 
-      <SpotModal spot={selected} mySpotId={mySpotId} T={T}
+      <SpotModal spotId={selected?.id ?? null} T={T}
         onClose={()=>setSelected(null)} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut}/>
       <OKUWarningModal visible={okuWarning} T={T} plate={currentPlate}
         onClose={()=>{setOkuWarning(false);setPendingSpot(null);}}
