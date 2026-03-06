@@ -86,7 +86,7 @@ export default function HomeScreen() {
             <Text style={[styles.greeting,  { color:T.muted }]}>Good morning 👋</Text>
             <Text style={[styles.pageTitle, { color:T.text  }]}>Parking Dashboard</Text>
           </View>
-          <Image source={require('../../assets/images/itkia.jpg')} style={{ width:80, height:40, resizeMode:'contain' }} />
+          <Image source={require('../../assets/images/itkia.png')} style={{ width:80, height:40, resizeMode:'contain' }} />
         </Animated.View>
 
         <Animated.View style={{ opacity:fadeAnim }}>
