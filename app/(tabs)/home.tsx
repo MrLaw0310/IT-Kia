@@ -180,8 +180,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen:{ flex:1 },
   scroll:{ padding:20, paddingTop:56, paddingBottom:100, backgroundColor:"transparent" },
-  patternWrap:{ position:"absolute", top:0, left:0, right:0, bottom:0, flexDirection:"row", flexWrap:"wrap", padding:16, gap:18, zIndex:-1 },
-  patternChar:{ fontSize:32 },
   header:   { flexDirection:"row", justifyContent:"space-between", alignItems:"center", marginBottom:16 },
   greeting: { fontSize:13 },
   pageTitle:{ fontSize:24, fontWeight:"800", letterSpacing:-0.5 },
