@@ -2,162 +2,185 @@
 // utils/ThemeContext.tsx
 //
 // 全局主题系统 — 5 种风格
-// Tech (default) / Nordic / Vintage / Mystic / Autumn
+// 科技 / 藏青 / 星海 / 天空 / 梦幻
+//
+// 渐变背景由 app/_layout.tsx 的 LinearGradient 统一渲染
+// 各屏幕背景设为 transparent 让渐变透出来
 // ─────────────────────────────────────────────────────────────────────────────
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type ThemeKey = "tech" | "nordic" | "vintage" | "mystic" | "autumn";
+export type ThemeKey = "tech" | "navy" | "galaxy" | "sky" | "fantasy";
 
 export interface Theme {
-  key:           ThemeKey;
-  name:          string;
-  emoji:         string;
-  desc:          string;
-  bg:            string;   // 页面背景
-  card:          string;   // 卡片背景
-  border:        string;   // 边框
-  accent:        string;   // 主要强调色（按钮、选中）
-  green:         string;   // 成功/空位
-  red:           string;   // 错误/占用
-  orange:        string;   // 警告
-  blue:          string;   // OKU 专用
-  yellow:        string;   // 我的停车位高亮色
-  text:          string;   // 正文
-  muted:         string;   // 次要文字
-  tabBar:        string;   // Tab 栏背景
-  tabBorder:     string;   // Tab 栏上边框
-  pattern?:      string;   // 背景装饰字符
-  patternColor?: string;   // 装饰字符颜色
+  key:             ThemeKey;
+  name:            string;
+  emoji:           string;
+  desc:            string;
+  bg:              string;    // 渐变不可用时的纯色兜底
+  card:            string;    // 卡片背景（需与渐变背景有明显层次）
+  border:          string;    // 边框
+  accent:          string;    // 主要强调色（按钮/选中）
+  green:           string;    // 空位
+  red:             string;    // 占用
+  orange:          string;    // 警告
+  blue:            string;    // OKU 专用
+  yellow:          string;    // 我的车位高亮
+  text:            string;    // 正文（深色主题用浅色，浅色主题用深色）
+  muted:           string;    // 次要文字
+  tabBar:          string;    // Tab 栏背景
+  tabBorder:       string;    // Tab 栏上边框
+  isDarkTheme:     boolean;   // true=深色主题(浅字), false=浅色主题(深字)
+  gradientColors:  string[];  // LinearGradient 渐变色数组（从上到下）
 }
 
 export const THEMES: Record<ThemeKey, Theme> = {
 
-  // ── 1. 科技深色（默认）────────────────────────────────────────────
-  // 深蓝黑底，霓虹蓝高亮，未来感
+  // ── 1. 科技 Tech ─────────────────────────────────────────────────
+  // 参考图4：亮蓝（顶）→ 蓝紫（中）→ 粉紫（底）
+  // 深色主题，浅色文字
   tech: {
-    key: "tech", name: "Tech", emoji: "🌌", desc: "Dark sci-fi · Default",
-    bg:        "#060D1F",
-    card:      "#0D1B38",
-    border:    "#1A2F5A",
-    accent:    "#1E90FF",
-    green:     "#22C55E",
-    red:       "#EF4444",
-    orange:    "#F97316",
-    blue:      "#818CF8",
-    yellow:    "#FBBF24",   // 我的车位：金黄色
-    text:      "#E8F0FF",
-    muted:     "#6B7FA8",
-    tabBar:    "#080F22",
-    tabBorder: "#1A2F5A",
-    // 科技风无背景装饰
+    key: "tech", name: "Tech", emoji: "🔵", desc: "Vivid blue · Purple · Pink",
+    bg:          "#1A35F0",  // 渐变兜底色（亮蓝）
+    card:        "#0A1880",  // 深蓝卡片（比渐变深，层次感）
+    border:      "#2030A0",  // 边框
+    accent:      "#FF80C0",  // 粉色点缀（与蓝色强对比）
+    green:       "#40E898",  // 亮翠绿（空位）
+    red:         "#FF6080",  // 亮粉红（占用）
+    orange:      "#FFB040",  // 亮橙（警告）
+    blue:        "#80D0FF",  // 天蓝（OKU）
+    yellow:      "#FFE040",  // 亮黄（我的车位）
+    text:        "#F0F4FF",  // 近白正文
+    muted:       "#A0B0E0",  // 浅蓝次要文字
+    tabBar:      "#0A1060",  // 深蓝 Tab 栏
+    tabBorder:   "#2030A0",
+    isDarkTheme: true,
+    gradientColors: [
+      "#1A35F0",  // 亮蓝（顶部）
+      "#3050E8",  // 中蓝
+      "#5048D0",  // 蓝紫
+      "#8840B8",  // 紫
+      "#C05890",  // 粉紫（底部）
+    ],
   },
 
-  // ══════════════════════════════════════════════════════════════════
-  // 配色原则 6:3:1（参考丁香医生 / ofo 的三色层次）
-  //
-  //  6 → bg     主背景色（大面积铺底，最轻的颜色）
-  //  3 → card   配合色（卡片/区块的主体颜色，跟背景搭但有层次感）
-  //  1 → accent 点缀色（按钮/徽章/高亮，跳出背景的对比色）
-  //
-  //  例子：
-  //    丁香医生 → 6=淡紫白 / 3=紫色 / 1=橙色
-  //    ofo     → 6=米白  / 3=黄色 / 1=红色
-  // ══════════════════════════════════════════════════════════════════
-
-  // ── 2. Nordic ─────────────────────────────────────────────────────
-  //  6 背景: #F2F4F5  冷雾白（大面积铺底）
-  //  3 卡片: #B8CDD6  灰蓝色（卡片/区块主体，30% 面积）
-  //  1 点缀: #1A3D4F  深海军蓝（按钮/高亮，10% 跳出）
-  nordic: {
-    key: "nordic", name: "Nordic", emoji: "🌊", desc: "Nordic coast · Cool grey · Calm",
-    bg:        "#F2F4F5",   // 6 ── 主背景（冷雾白，大面积）
-    card:      "#B8CDD6",   // 3 ── 卡片色（灰蓝，独立配合色）
-    border:    "#9ABAC6",   // 边框（卡片色深一阶）
-    accent:    "#1A3D4F",   // 1 ── 点缀色（深海军蓝，对比跳出）
-    green:     "#2A6040",
-    red:       "#803038",
-    orange:    "#806040",
-    blue:      "#2A5878",
-    yellow:    "#706020",
-    text:      "#0A2030",   // 深色正文（浅底配深字）
-    muted:     "#5A7888",   // 次要文字（卡片色调）
-    tabBar:    "#F2F4F5",   // Tab 栏跟主背景一致
-    tabBorder: "#9ABAC6",
+  // ── 2. 藏青 Navy ─────────────────────────────────────────────────
+  // 参考图2：深青蓝（顶）→ 中蓝（中）→ 浅蓝灰（底）
+  // 深色主题，浅色文字
+  navy: {
+    key: "navy", name: "Navy", emoji: "🌊", desc: "Deep teal · Ocean blue · Light grey",
+    bg:          "#0A5878",  // 渐变兜底色（深青蓝）
+    card:        "#083A50",  // 深海蓝卡片（比渐变深）
+    border:      "#1A6080",  // 边框
+    accent:      "#5CDAF0",  // 亮青点缀
+    green:       "#40D8A0",  // 亮翠绿（空位）
+    red:         "#FF7070",  // 亮红（占用）
+    orange:      "#FFB060",  // 亮橙（警告）
+    blue:        "#80C8FF",  // 天蓝（OKU）
+    yellow:      "#FFE080",  // 亮黄（我的车位）
+    text:        "#E8F4F8",  // 近白正文
+    muted:       "#80B0C8",  // 浅蓝次要文字
+    tabBar:      "#063040",  // 极深青 Tab 栏
+    tabBorder:   "#1A6080",
+    isDarkTheme: true,
+    gradientColors: [
+      "#0A5878",  // 深青蓝（顶部）
+      "#1A78A0",  // 中青蓝
+      "#3090B8",  // 中蓝
+      "#60A8C8",  // 浅蓝
+      "#A8D0E0",  // 浅蓝灰（底部）
+    ],
   },
 
-  // ── 3. Vintage ───────────────────────────────────────────────────
-  //  6 背景: #F5F0E6  宣纸米白（大面积铺底）
-  //  3 卡片: #C8B080  暖金褐（卡片/区块主体，30% 面积）
-  //  1 点缀: #2C1A08  深墨棕（按钮/高亮，10% 跳出）
-  vintage: {
-    key: "vintage", name: "Vintage", emoji: "☕", desc: "Vintage café · Warm kraft · Earthy",
-    bg:        "#F5F0E6",   // 6 ── 主背景（宣纸米白，大面积）
-    card:      "#C8B080",   // 3 ── 卡片色（暖金褐，独立配合色）
-    border:    "#B09060",   // 边框（卡片色深一阶）
-    accent:    "#2C1A08",   // 1 ── 点缀色（深墨棕，对比跳出）
-    green:     "#385840",
-    red:       "#782828",
-    orange:    "#785020",
-    blue:      "#304858",
-    yellow:    "#685010",
-    text:      "#180A00",   // 深墨正文
-    muted:     "#786040",   // 次要文字（卡片色调）
-    tabBar:    "#F5F0E6",   // Tab 栏跟主背景一致
-    tabBorder: "#B09060",
-    pattern:      "墨",
-    patternColor: "rgba(44,26,8,0.05)",
+  // ── 3. 星海 Galaxy ───────────────────────────────────────────────
+  // 参考图3：深蓝紫 + 青色 + 粉紫 + 星光白 混色星空
+  // 深色主题，浅色文字
+  galaxy: {
+    key: "galaxy", name: "Galaxy", emoji: "🌌", desc: "Deep space · Cyan · Purple nebula",
+    bg:          "#181060",  // 渐变兜底色（深蓝紫）
+    card:        "#201878",  // 深紫蓝卡片（比渐变微亮，层次感）
+    border:      "#3828A0",  // 边框
+    accent:      "#50D8F0",  // 亮青点缀（星光感）
+    green:       "#50E898",  // 亮翠绿（空位）
+    red:         "#FF6090",  // 亮粉红（占用）
+    orange:      "#FFB040",  // 亮橙（警告）
+    blue:        "#80C8FF",  // 天蓝（OKU）
+    yellow:      "#FFE040",  // 亮黄（我的车位）
+    text:        "#F0ECFF",  // 近白正文（微紫）
+    muted:       "#9888C8",  // 淡紫次要文字
+    tabBar:      "#100840",  // 极深紫 Tab 栏
+    tabBorder:   "#3828A0",
+    isDarkTheme: true,
+    gradientColors: [
+      "#181060",  // 深蓝紫（顶部）
+      "#3040B8",  // 亮蓝紫
+      "#2898C8",  // 亮青蓝（星云青）
+      "#9838A8",  // 粉紫（星云紫）
+      "#1820A0",  // 深蓝（底部）
+    ],
   },
 
-  // ── 4. Mystic ───────────────────────────────────────────────────
-  //  6 背景: #0E0E1C  极深夜蓝（大面积铺底）
-  //  3 卡片: #2E2060  深紫（卡片/区块主体，30% 面积）
-  //  1 点缀: #D0B8FF  亮薰衣草（按钮/高亮，10% 跳出）
-  mystic: {
-    key: "mystic", name: "Mystic", emoji: "🌌", desc: "Deep space · Midnight purple · Mystic",
-    bg:        "#0E0E1C",   // 6 ── 主背景（极深夜蓝，大面积）
-    card:      "#2E2060",   // 3 ── 卡片色（深紫，独立配合色）
-    border:    "#3E3070",   // 边框（卡片色亮一阶）
-    accent:    "#D0B8FF",   // 1 ── 点缀色（亮薰衣草，对比跳出）
-    green:     "#48D880",
-    red:       "#E05050",
-    orange:    "#E09848",
-    blue:      "#88A8FF",
-    yellow:    "#E0C848",
-    text:      "#F0ECFF",   // 亮色正文（深底配浅字）
-    muted:     "#9888C8",   // 次要文字（卡片色调偏亮）
-    tabBar:    "#0E0E1C",   // Tab 栏跟主背景一致
-    tabBorder: "#3E3070",
-    pattern:      "✦",
-    patternColor: "rgba(208,184,255,0.08)",
+  // ── 4. 天空 Sky ──────────────────────────────────────────────────
+  // 参考图1：柔黄（左上）→ 浅粉 → 薰衣草 → 浅蓝 → 中紫（底）
+  // 浅色主题，深色文字
+  sky: {
+    key: "sky", name: "Sky", emoji: "☁️", desc: "Pastel yellow · Lavender · Soft purple",
+    bg:          "#D8C8F8",  // 渐变兜底色（浅薰衣草）
+    card:        "#FFFFFF",  // 白色卡片（浅色背景用白卡片，最清晰）
+    border:      "#D8C8F0",  // 浅紫边框
+    accent:      "#7020C8",  // 深紫点缀（浅底深色跳出）
+    green:       "#1A8040",  // 深绿（浅底深色）
+    red:         "#C82030",  // 深红（浅底深色）
+    orange:      "#C06010",  // 深橙（浅底深色）
+    blue:        "#2060C0",  // 深蓝（浅底深色）
+    yellow:      "#B07010",  // 深金（浅底深色）
+    text:        "#2A1050",  // 深紫文字（浅底）
+    muted:       "#7060A0",  // 中紫次要文字
+    tabBar:      "#EEE8FF",  // 浅紫 Tab 栏
+    tabBorder:   "#D0C0F0",
+    isDarkTheme: false,      // 浅色主题 → StatusBar 深色
+    gradientColors: [
+      "#F5F5C0",  // 柔黄（顶部）
+      "#F5D0E8",  // 浅粉
+      "#DDD0F5",  // 薰衣草
+      "#C8D8F8",  // 浅蓝
+      "#B8A8F0",  // 浅紫
+      "#9870D8",  // 中紫（底部）
+    ],
   },
 
-  // ── 5. Autumn ───────────────────────────────────────────────────
-  //  6 背景: #FFF4EC  奶油暖白（大面积铺底）
-  //  3 卡片: #FFBB88  蜜桃橙（卡片/区块主体，30% 面积）
-  //  1 点缀: #802000  深砖红（按钮/高亮，10% 跳出）
-  autumn: {
-    key: "autumn", name: "Autumn", emoji: "🍂", desc: "Autumn sunset · Peach · Cozy",
-    bg:        "#FFF4EC",   // 6 ── 主背景（奶油暖白，大面积）
-    card:      "#FFBB88",   // 3 ── 卡片色（蜜桃橙，独立配合色）
-    border:    "#F0A060",   // 边框（卡片色深一阶）
-    accent:    "#802000",   // 1 ── 点缀色（深砖红，对比跳出）
-    green:     "#306030",
-    red:       "#902020",
-    orange:    "#904818",
-    blue:      "#304870",
-    yellow:    "#905010",
-    text:      "#200800",   // 深暖棕正文
-    muted:     "#906040",   // 次要文字（卡片色调）
-    tabBar:    "#FFF4EC",   // Tab 栏跟主背景一致
-    tabBorder: "#F0A060",
-    pattern:      "☀",
-    patternColor: "rgba(128,32,0,0.05)",
+  // ── 5. 梦幻 Fantasy ──────────────────────────────────────────────
+  // 参考图5：奶白（中）→ 柔黄 → 暖橙 → 浅粉 → 蓝紫（角落）
+  // 浅色主题，深色文字
+  fantasy: {
+    key: "fantasy", name: "Fantasy", emoji: "✨", desc: "Dreamy white · Yellow · Pink · Purple",
+    bg:          "#F0F0FF",  // 渐变兜底色（极浅蓝白）
+    card:        "#FFFFFF",  // 白色卡片
+    border:      "#E8D8F8",  // 浅粉紫边框
+    accent:      "#9020D0",  // 深紫点缀（浅底深色跳出）
+    green:       "#1A7838",  // 深绿
+    red:         "#C02030",  // 深红
+    orange:      "#B85800",  // 深橙
+    blue:        "#1858C0",  // 深蓝
+    yellow:      "#A06010",  // 深金
+    text:        "#1A0A30",  // 极深紫文字
+    muted:       "#806090",  // 中紫粉次要文字
+    tabBar:      "#FFF8F8",  // 极浅粉白 Tab 栏
+    tabBorder:   "#EED8F0",
+    isDarkTheme: false,      // 浅色主题 → StatusBar 深色
+    gradientColors: [
+      "#FFFCE8",  // 奶白（顶部）
+      "#FFE898",  // 柔黄
+      "#FFCA70",  // 暖橙黄
+      "#F8B8D8",  // 浅粉
+      "#D8A0E8",  // 浅紫粉
+      "#9090E0",  // 蓝紫（底部）
+    ],
   },
 };
 
-// ─── Context ──────────────────────────────────────────────────────────
+// ─── Context ──────────────────────────────────────────────────────────────────
 interface ThemeContextType {
   theme:    Theme;
   themeKey: ThemeKey;
@@ -170,7 +193,7 @@ const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
 });
 
-// ─── ThemeProvider — 放在 app/_layout.tsx 最外层 ──────────────────────
+// ─── ThemeProvider — 放在 app/_layout.tsx 最外层 ──────────────────────────────
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeKey, setThemeKey] = useState<ThemeKey>("tech");
 
@@ -181,7 +204,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // 切换主题并保存
+  // 切换主题并持久化
   function setTheme(key: ThemeKey) {
     setThemeKey(key);
     AsyncStorage.setItem("app_theme", key);
@@ -194,7 +217,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── useTheme Hook ────────────────────────────────────────────────────
+// ─── useTheme Hook ─────────────────────────────────────────────────────────────
 // 用法：const { theme, themeKey, setTheme } = useTheme();
 export function useTheme() {
   return useContext(ThemeContext);

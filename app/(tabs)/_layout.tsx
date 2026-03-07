@@ -56,6 +56,8 @@ export default function TabLayout() {
           paddingBottom:   12,
           paddingTop:      8,
         },
+        // 让 tab 页面背景透明，让 _layout 的渐变透出来
+        sceneStyle: { backgroundColor: "transparent" },
         tabBarLabelStyle: {
           fontSize:      10,
           fontWeight:    "700",

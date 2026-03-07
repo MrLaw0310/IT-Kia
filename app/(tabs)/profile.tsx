@@ -3,7 +3,7 @@
 //
 // 功能：
 //   1. 头像拍照 / 相册选取
-//   2. 🎨 主题切换弹窗（4 种风格）
+//   2. 🎨 主题切换弹窗（5 种风格：Tech / Navy / Galaxy / Sky / Fantasy）
 //   3. 车辆管理（注册 / 编辑 / 删除，最多 4 辆）
 //   4. 通知开关
 //   5. 账号设置 / App 信息 / 登出
@@ -51,13 +51,13 @@ interface Vehicle {
 // 🎨 ThemePickerModal — 主题选择弹窗
 //
 // 从 Profile 页点击 "App Theme" 按钮触发
-// 显示 4 个主题卡片，点击立即切换全 App 颜色
+// 显示 5 个主题卡片，点击立即切换全 App 颜色
 // ═════════════════════════════════════════════════════════════════════
 function ThemePickerModal({ visible, onClose }: {
   visible: boolean;
   onClose: () => void;
 }) {
-  // themeKey  = 当前选中的主题 key（"tech" | "gentle" | "vintage" | "nordic"）
+  // themeKey  = 当前选中的主题 key（"tech" | "navy" | "galaxy" | "sky" | "fantasy"）
   // setTheme  = 切换主题的函数（来自 ThemeContext，会自动保存到 AsyncStorage）
   // T         = 当前主题颜色对象
   const { themeKey, setTheme, theme: T } = useTheme();
@@ -77,7 +77,7 @@ function ThemePickerModal({ visible, onClose }: {
           </Text>
 
           {/* ── 2×2 主题卡片网格 ── */}
-          {/* THEMES 来自 ThemeContext，包含所有 4 个主题定义 */}
+          {/* THEMES 来自 ThemeContext，包含所有 5 个主题定义 */}
           <View style={styles.themeGrid}>
             {(Object.values(THEMES) as Theme[]).map((t) => {
               const isActive = themeKey === t.key;  // 是否是当前选中主题
@@ -103,13 +103,6 @@ function ThemePickerModal({ visible, onClose }: {
                       <View key={i} style={[styles.previewDot, { backgroundColor: c }]} />
                     ))}
                   </View>
-
-                  {/* 背景装饰字符（古风=水，温柔=✦，日系=花）*/}
-                  {t.pattern && (
-                    <Text style={[styles.themePatternChar, { color: t.accent + "50" }]}>
-                      {t.pattern}
-                    </Text>
-                  )}
 
                   <Text style={styles.themeEmoji}>{t.emoji}</Text>
                   <Text style={[styles.themeName, { color: t.text }]}>{t.name}</Text>
@@ -468,27 +461,17 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: T.bg }]}>
-
-      {/* ── 背景装饰（温柔/古风/日系才有）── */}
-      {T.pattern && (
-        <View style={styles.patternWrap} pointerEvents="none">
-          {Array.from({ length: 40 }, (_, i) => (
-            <Text key={i} style={[styles.patternChar, { color: T.patternColor }]}>
-              {T.pattern}
-            </Text>
-          ))}
-        </View>
-      )}
+    <View style={[styles.screen, { backgroundColor: "transparent" }]}>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* ── 标题栏 ── */}
+        {/* ── 标题栏（结构与 Map / History 一致：主标题 + 副标题 + IT Kia logo）── */}
         <View style={styles.header}>
-          <Text style={[styles.pageTitle, { color: T.text }]}>Profile</Text>
-          <View style={[styles.logoBadge, { backgroundColor: T.accent+"18", borderColor: T.accent+"44" }]}>
-            <Text style={[styles.logoText, { color: T.accent }]}>MDIS</Text>
+          <View>
+            <Text style={[styles.pageTitle, { color: T.text }]}>Profile</Text>
+            <Text style={[styles.subtitle,   { color: T.muted }]}>Account & Settings</Text>
           </View>
+          <Image source={require('../../assets/images/itkia.png')} style={{ width: 80, height: 40, resizeMode: 'contain' }} />
         </View>
 
         {/* ── 头像卡片 ── */}
@@ -692,15 +675,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   scroll: { padding: 20, paddingTop: 56, paddingBottom: 100, backgroundColor: "transparent" },
 
-  // 背景装饰
-  patternWrap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 18, zIndex: -1 },
-  patternChar: { fontSize: 32 },
+  // 背景已由 app/_layout.tsx 的 LinearGradient 统一处理，各屏幕背景设为 transparent
 
   // 标题栏
-  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  // 标题栏（marginBottom 与其他页面一致，logo 才能对齐）
+  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  logoBadge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  logoText:  { fontWeight: "800", fontSize: 13, letterSpacing: 1.5 },
+  subtitle:  { fontSize: 13 },
 
   // 头像卡片
   avatarCard:      { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 20 },
@@ -728,7 +709,6 @@ const styles = StyleSheet.create({
   themeCard:       { width: "47%", borderRadius: 16, padding: 14, alignItems: "center", overflow: "hidden", minHeight: 130, justifyContent: "center" },
   themePreviewRow: { flexDirection: "row", gap: 4, marginBottom: 8 },
   previewDot:      { width: 8, height: 8, borderRadius: 4 },
-  themePatternChar:{ position: "absolute", top: 6, right: 8, fontSize: 28 },
   themeEmoji:      { fontSize: 28, marginBottom: 6 },
   themeName:       { fontWeight: "800", fontSize: 15, marginBottom: 2 },
   themeDesc:       { fontSize: 10, textAlign: "center" },

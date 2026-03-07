@@ -120,16 +120,8 @@ export default function CameraScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==="ios"?"padding":"height"}>
-      <ScrollView style={[styles.screen,{backgroundColor:T.bg}]}
+      <ScrollView style={[styles.screen,{backgroundColor:"transparent"}]}
         contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-
-        {T.pattern && (
-          <View style={styles.patternWrap} pointerEvents="none">
-            {Array.from({length:30},(_,i)=>(
-              <Text key={i} style={[styles.patternChar,{color:T.patternColor}]}>{T.pattern}</Text>
-            ))}
-          </View>
-        )}
 
         {/* Header */}
         <View style={styles.header}>
@@ -333,8 +325,6 @@ export default function CameraScreen() {
 const styles = StyleSheet.create({
   screen: {flex:1},
   scroll: {padding:20,paddingTop:56,paddingBottom:60,backgroundColor:"transparent"},
-  patternWrap: {position:"absolute",top:0,left:0,right:0,bottom:0,flexDirection:"row",flexWrap:"wrap",padding:20,gap:20},
-  patternChar: {fontSize:28},
   header:       {flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:20},
   backArrow:    {padding:4},
   backArrowText:{fontSize:16,fontWeight:"600"},

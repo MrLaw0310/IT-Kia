@@ -27,7 +27,7 @@ function AvailabilityRing({ available, total, T }: { available:number; total:num
   return (
     <View style={styles.ringWrap}>
       <View style={[styles.ringOuter, { borderColor: color+"33" }]}>
-        <View style={[styles.ringInner, { borderColor:color, backgroundColor:T.bg }]}>
+        <View style={[styles.ringInner, { borderColor:color, backgroundColor:"transparent" }]}>
           <AnimatedNumber value={available} style={[styles.ringNumber, { color }]} />
           <Text style={[styles.ringLabel, { color:T.muted }]}>available</Text>
         </View>
@@ -41,7 +41,7 @@ export default function HomeScreen() {
   const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal } = useParkingContext();
   // ⭐ 这些数字直接从 ParkingContext 读，和 map 页完全同步
   const TOTAL_SPOTS     = totalNormal + okuTotal;  // ← 普通位 + OKU 位
-  const AVAILABLE_SPOTS = freeCount;
+  const AVAILABLE_SPOTS = freeCount + okuFree;
   const OCCUPIED_SPOTS  = occCount;
   const { theme: T } = useTheme();
   const router    = useRouter();
@@ -67,14 +67,7 @@ export default function HomeScreen() {
   const statusLabel = pct > 40 ? "Plenty of Space" : pct > 20 ? "Filling Up" : "Almost Full";
 
   return (
-    <View style={[styles.screen, { backgroundColor: T.bg }]}>
-      {T.pattern && (
-        <View style={styles.patternWrap} pointerEvents="none">
-          {Array.from({length:40},(_,i)=>(
-            <Text key={i} style={[styles.patternChar, { color:T.patternColor }]}>{T.pattern}</Text>
-          ))}
-        </View>
-      )}
+    <View style={[styles.screen, { backgroundColor: "transparent" }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         <Animated.View style={[styles.header, { opacity:fadeAnim, transform:[{translateY:slideAnim}] }]}>
@@ -91,7 +84,7 @@ export default function HomeScreen() {
               <Text style={styles.gpsIcon}>📍</Text>
               <View>
                 <Text style={[styles.gpsTitle, { color:T.muted }]}>Campus Location</Text>
-                <Text style={[styles.gpsVal,   { color:T.text  }]}>EduCity, Iskandar Puteri, Johor</Text>
+                <Text style={[styles.gpsVal, { color:T.text }]} numberOfLines={1} ellipsizeMode="tail">EduCity, Iskandar Puteri, Johor</Text>
               </View>
             </View>
             <TouchableOpacity style={[styles.directionsBtn, { backgroundColor:T.accent+"22", borderColor:T.accent+"55" }]}
@@ -184,11 +177,11 @@ const styles = StyleSheet.create({
   greeting: { fontSize:13 },
   pageTitle:{ fontSize:24, fontWeight:"800", letterSpacing:-0.5 },
   gpsCard:  { borderWidth:1, borderRadius:14, padding:14, marginBottom:12, flexDirection:"row", justifyContent:"space-between", alignItems:"center" },
-  gpsLeft:  { flexDirection:"row", alignItems:"center", gap:10, flex:1 },
+  gpsLeft:  { flexDirection:"row", alignItems:"center", gap:10, flexShrink:1, maxWidth:"58%" },
   gpsIcon:  { fontSize:20 },
   gpsTitle: { fontSize:11, marginBottom:2 },
   gpsVal:   { fontWeight:"600", fontSize:13 },
-  directionsBtn:    { borderWidth:1, borderRadius:10, paddingHorizontal:12, paddingVertical:7 },
+  directionsBtn:    { borderWidth:1, borderRadius:10, paddingHorizontal:12, paddingVertical:7, flexShrink:0 },
   directionsBtnText:{ fontWeight:"700", fontSize:12 },
   statusBanner: { flexDirection:"row", alignItems:"center", gap:8, borderWidth:1, borderRadius:12, paddingHorizontal:14, paddingVertical:9, marginBottom:16 },
   statusDot:    { width:8, height:8, borderRadius:4 },
