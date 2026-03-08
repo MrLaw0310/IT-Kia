@@ -39,14 +39,24 @@ function AvailabilityRing({ available, total, T }: { available:number; total:num
 
 export default function HomeScreen() {
   const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal } = useParkingContext();
-  // ⭐ 这些数字直接从 ParkingContext 读，和 map 页完全同步
-  const TOTAL_SPOTS     = totalNormal + okuTotal;  // ← 普通位 + OKU 位
+  const TOTAL_SPOTS     = totalNormal + okuTotal;
   const AVAILABLE_SPOTS = freeCount + okuFree;
   const OCCUPIED_SPOTS  = occCount;
   const { theme: T } = useTheme();
   const router    = useRouter();
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // ── Real-time clock ──────────────────────────────────────────
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const hour     = now.getHours();
+  const timeStr  = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const greeting = hour < 12 ? "Good Morning 🌅" : hour < 18 ? "Good Afternoon ☀️" : "Good Evening 🌙";
+  // ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     Animated.parallel([
@@ -72,8 +82,8 @@ export default function HomeScreen() {
 
         <Animated.View style={[styles.header, { opacity:fadeAnim, transform:[{translateY:slideAnim}] }]}>
           <View>
-            <Text style={[styles.greeting,  { color:T.muted }]}>Good morning 👋</Text>
-            <Text style={[styles.pageTitle, { color:T.text  }]}>Parking Dashboard</Text>
+            <Text style={[styles.greeting, { color:T.muted }]}>{timeStr}</Text>
+            <Text style={[styles.pageTitle, { color:T.text }]}>{greeting}</Text>
           </View>
           <Image source={require('../../assets/images/itkia.png')} style={{ width:80, height:40, resizeMode:'contain' }} />
         </Animated.View>
@@ -126,7 +136,6 @@ export default function HomeScreen() {
         </Animated.View>
 
         <Text style={[styles.sectionTitle, { color:T.muted }]}>QUICK ACTIONS</Text>
-        {/* 2×2 网格：用两行 View 代替 flexWrap，确保每行精确 50/50 */}
         {[
           [
             { icon:"🗺️", label:"View Map",   bg:T.accent, textColor:"white", onPress:()=>router.push("/(tabs)/map" as any) },

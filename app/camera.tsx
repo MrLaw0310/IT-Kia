@@ -6,7 +6,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from "react-native";
-import { loadPlates } from '../utils/storage';
+import { useParkingContext } from '../utils/ParkingContext';
 import { useTheme } from '../utils/ThemeContext';
 
 const CHECKIN_KEY = "mdis_active_checkin";
@@ -23,18 +23,19 @@ export default function CameraScreen() {
   const { theme: T } = useTheme();
   const router = useRouter();
 
-  const [step,             setStep]   = useState<Step>("entry");
-  const [plate,            setPlate]  = useState("");
-  const [matchedPlate,     setMatched]= useState("");
-  const [error,            setError]  = useState("");
-  const [registeredPlates, setPlates] = useState<string[]>([]);
-  const [activeCheckIn,    setActive] = useState<ActiveCheckIn | null>(null);
+  // ⭐ 直接从ParkingContext读vehicles，和profile完全同步
+  const { vehicles } = useParkingContext();
+
+  const [step,          setStep]   = useState<Step>("entry");
+  const [plate,         setPlate]  = useState("");
+  const [matchedPlate,  setMatched]= useState("");
+  const [error,         setError]  = useState("");
+  const [activeCheckIn, setActive] = useState<ActiveCheckIn | null>(null);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(useCallback(() => {
-    loadPlates().then(setPlates);
     loadActiveCheckIn();
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []));
@@ -65,12 +66,14 @@ export default function CameraScreen() {
     animatePress();
     const cleaned = plate.trim().toUpperCase();
     if (!cleaned) { setError("Please enter your plate number."); return; }
-    const match = registeredPlates.find(p => p.toUpperCase() === cleaned);
+
+    // ⭐ 直接比对ParkingContext的vehicles
+    const match = vehicles.find(v => v.plate.toUpperCase().replace(/\s/g, "") === cleaned.replace(/\s/g, ""));
     if (!match) {
       setError(`"${cleaned}" is not registered under your account.\nPlease check or register in Profile.`);
       return;
     }
-    setError(""); setMatched(match); setStep("confirm");
+    setError(""); setMatched(match.plate); setStep("confirm");
   }
 
   async function handleConfirm() {
@@ -117,6 +120,9 @@ export default function CameraScreen() {
   const stepLabels  = isCheckOut
     ? ["Active Session", "Confirm", "Done"]
     : ["Enter Plate",    "Confirm", "Done"];
+
+  // ⭐ 从ParkingContext的vehicles提取plate列表
+  const registeredPlates = vehicles.map(v => v.plate);
 
   return (
     <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==="ios"?"padding":"height"}>
@@ -184,7 +190,7 @@ export default function CameraScreen() {
             <TextInput
               style={[styles.input,{backgroundColor:T.card,borderColor:error?T.red:T.border,color:T.text}]}
               value={plate} onChangeText={t=>{setPlate(t);setError("");}}
-              placeholder="e.g. WXY 1234" placeholderTextColor={T.muted}
+              placeholder="e.g. JHR 1234" placeholderTextColor={T.muted}
               autoCapitalize="characters" autoCorrect={false} maxLength={10}
             />
             {error?<Text style={[styles.errorText,{color:T.red}]}>{error}</Text>:null}
@@ -352,8 +358,8 @@ const styles = StyleSheet.create({
   input:        {borderWidth:1,borderRadius:14,padding:16,fontSize:20,fontWeight:"800",letterSpacing:3,marginBottom:8,textAlign:"center"},
   errorText:    {fontSize:12,marginBottom:12,lineHeight:18},
   quickPickLabel:{fontSize:11,letterSpacing:1,marginBottom:10,marginTop:4},
-  quickPickRow: {flexDirection:"row",gap:10,marginBottom:24},
-  quickPickBtn: {flex:1,borderWidth:1,borderRadius:12,padding:12,alignItems:"center",gap:4},
+  quickPickRow: {flexDirection:"row",gap:10,marginBottom:24,flexWrap:"wrap"},
+  quickPickBtn: {borderWidth:1,borderRadius:12,padding:12,alignItems:"center",gap:4,minWidth:100},
   quickPickIcon:{fontSize:18},
   quickPickText:{fontWeight:"700",fontSize:13},
   primaryBtn:    {borderRadius:16,paddingVertical:16,alignItems:"center",marginBottom:12},
