@@ -87,7 +87,9 @@ app/
     └── profile.tsx        ← Student profile & vehicles
 
 utils/
-└── storage.ts             ← AsyncStorage helpers (save/load plates)
+├── storage.ts             ← AsyncStorage helpers (save/load plates)
+├── ParkingContext.tsx     ← AsyncStorage helpers (save/load map)
+└── ThemeContext.tsx       ← AsyncStorage helpers (save/load theme)
 
 assets/
 └── images/
@@ -101,8 +103,8 @@ assets/
 | | |
 |---|---|
 | **School** | MDIS Malaysia — EduCity, Iskandar Puteri, Johor |
-| **Course** | Diploma in Computer Science |
-| **Project** | Mobile Application Development Assignment |
+| **Course** | Diploma in Information Technology |
+| **Project** | Mobile Application Group Assignment |
 
 ---
 
