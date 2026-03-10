@@ -111,7 +111,6 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
   const [activity,      setActivity]      = useState<ActivityItem[]>([]);
   const [loaded,        setLoaded]        = useState(false);
 
-  // ── 启动时读取 AsyncStorage ─────────────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
