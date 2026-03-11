@@ -321,6 +321,7 @@ export default function ProfileScreen() {
   const [editTarget,   setEditTarget]   = useState<Vehicle | undefined>(undefined); // Vehicle being edited (正在编辑的车辆)
   const [notifP, setNotifP] = useState(true);  // Parking reminder toggle (停车提醒开关)
   const [notifO, setNotifO] = useState(true);  // Overstay alert toggle (超时警告开关)
+  const [ratingVisible, setRatingVisible] = useState(false); // Star rating modal visibility (星级评分弹窗是否可见)
 
   // ── Avatar: take photo with camera (头像：用相机拍照) ────────────────────
   async function handleCamera() {
@@ -387,6 +388,27 @@ export default function ProfileScreen() {
       { text: "Cancel",  style: "cancel" },
       { text: "Log Out", style: "destructive", onPress: () => {} }, // TODO: clear session & navigate to login (清除会话并跳转登录页)
     ]);
+  }
+
+  // ── Rate app: hover state for star preview (悬停预览星星) ──
+  const [hoveredStar, setHoveredStar] = useState(0);
+
+  // ── Rate app: per-star messages shown after selection (每个星级对应不同的感谢弹窗) ──
+  const starMessages: Record<number, { title: string; message: string }> = {
+    1: { title: "1 Star",  message: "Looks like you don't know how to use it. Goodbye." },
+    2: { title: "2 Stars", message: "Maybe it's not the app's problem." },
+    3: { title: "3 Stars", message: "Indecision is also a choice." },
+    4: { title: "4 Stars", message: "You're very close to the right answer." },
+    5: { title: "5 Stars", message: "Congratulations, you made the right decision." },
+  };
+
+  function handleStarSelect(star: number) {
+    setRatingVisible(false);
+    setHoveredStar(0);
+    const { title, message } = starMessages[star];
+    setTimeout(() => {
+      Alert.alert(title, message, [{ text: "OK" }]);
+    }, 300); // Delay so modal close animation finishes before alert appears (等弹窗关闭动画结束再弹 alert)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -518,8 +540,9 @@ export default function ProfileScreen() {
         <View style={[styles.settingCard, { backgroundColor: T.card, borderColor: T.border }]}>
           <SettingRow icon="ℹ️" label="Version" sub="1.0.0 (Beta)" />
           <View style={[styles.rowDivider, { backgroundColor: T.border }]} />
+          {/* Rate This App — opens star rating modal (评分按钮 — 打开星级评分弹窗) */}
           <SettingRow icon="⭐" label="Rate This App"
-            onPress={() => Alert.alert("Rate Us", "Thank you for your feedback!")} />
+            onPress={() => setRatingVisible(true)} />
         </View>
 
         {/* ── Logout button (登出按钮) ── */}
@@ -544,6 +567,35 @@ export default function ProfileScreen() {
         onSave={editTarget ? editVehicle : addVehicle}
         onClose={() => setVehicleModal(false)}
       />
+
+      {/* ── Star Rating Modal — hollow stars until tapped, each star shows unique message (星级评分弹窗 — 未选为空心，选后对应不同弹窗) ── */}
+      <Modal transparent visible={ratingVisible} animationType="fade" onRequestClose={() => { setRatingVisible(false); setHoveredStar(0); }}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ backgroundColor: T.card, borderRadius: 20, padding: 28, width: 300, alignItems: "center", borderWidth: 1, borderColor: T.border }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: T.text, marginBottom: 6 }}>Rate This App</Text>
+            <Text style={{ fontSize: 13, color: T.muted, marginBottom: 24 }}>Tap a star to submit your rating</Text>
+            {/* Stars — filled (⭐) when selected or hovered, hollow (☆) otherwise (悬停或已选显示实心星，否则空心) */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => handleStarSelect(star)}
+                  onPressIn={() => setHoveredStar(star)}
+                  onPressOut={() => setHoveredStar(0)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 38, color: star <= hoveredStar ? "#F5A623" : T.muted }}>
+                    {star <= hoveredStar ? "★" : "☆"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity onPress={() => { setRatingVisible(false); setHoveredStar(0); }} style={{ marginTop: 22 }}>
+              <Text style={{ color: T.muted, fontSize: 13 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
