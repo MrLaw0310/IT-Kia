@@ -602,90 +602,180 @@ export default function ProfileScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  scroll: { padding: 20, paddingTop: 56, paddingBottom: 100, backgroundColor: "transparent" },
 
-  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  subtitle:  { fontSize: 13 },
+  // ── 页面容器 / Page containers ─────────────────────────────────────────────
+  screen: { flex: 1 },                                                                                
+  // 全屏容器，背景由 _layout.tsx 渐变填充 / Full-screen wrapper, gradient bg from _layout.tsx
+  scroll: { padding: 20, paddingTop: 56, paddingBottom: 100, backgroundColor: "transparent" },       
+  // 可滚动内容区，底部留空给 tab bar / Scrollable content, bottom pad for tab bar
 
-  avatarCard:      { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 20 },
-  avatarWrap:      { position: "relative", marginBottom: 6 },
-  avatarCircle:    { width: 90, height: 90, borderRadius: 45, borderWidth: 2, justifyContent: "center", alignItems: "center" },
-  avatarImage:     { width: 90, height: 90, borderRadius: 45, borderWidth: 2 },
-  avatarEmoji:     { fontSize: 40 },
-  cameraBadge:     { position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center", borderWidth: 2 },
-  changePhotoHint: { fontSize: 12, fontWeight: "600", marginBottom: 12 },
-  studentName:     { fontSize: 20, fontWeight: "800", marginBottom: 4 },
-  studentCourse:   { fontSize: 13, marginBottom: 12 },
-  idBadge:         { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 5, marginBottom: 10 },
-  idText:          { fontWeight: "700", fontSize: 12, letterSpacing: 0.5 },
-  infoRow:         { flexDirection: "row", width: "100%", borderRadius: 12, padding: 12 },
-  infoItem:        { flex: 1, alignItems: "center", gap: 4 },
-  infoIcon:        { fontSize: 16 },
-  infoVal:         { fontSize: 11, textAlign: "center" },
-  infoDivider:     { width: 1, marginHorizontal: 8 },
+  // ── 顶部标题栏 / Page header ───────────────────────────────────────────────
+  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }, 
+  // 标题 + 校徽横排 / Title row with school logo
+  pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },                              
+  // 页面主标题 "Profile" / Main page title
+  subtitle:  { fontSize: 13 },                                                                       
+  // 副标题 "Account & Settings" / Subtitle text
 
-  themePickerBtn:  { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16 },
-  themeGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
-  themeCard:       { width: "47%", borderRadius: 16, padding: 14, alignItems: "center", overflow: "hidden", minHeight: 130, justifyContent: "center" },
-  themePreviewRow: { flexDirection: "row", gap: 4, marginBottom: 8 },
-  previewDot:      { width: 8, height: 8, borderRadius: 4 },
-  themeEmoji:      { fontSize: 28, marginBottom: 6 },
-  themeName:       { fontWeight: "800", fontSize: 15, marginBottom: 2 },
-  themeDesc:       { fontSize: 10, textAlign: "center" },
-  activeCheck:     { position: "absolute", top: 8, left: 8, width: 20, height: 20, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  // ── 学生资料卡 / Student info card ────────────────────────────────────────
+  avatarCard:      { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: "center", marginBottom: 20 },  
+  // 整张资料卡容器 / Entire student card container
+  avatarWrap:      { position: "relative", marginBottom: 6 },                                        
+  // 头像和相机徽章的定位容器 / Positioning wrapper for avatar + camera badge
+  avatarCircle:    { width: 90, height: 90, borderRadius: 45, borderWidth: 2, justifyContent: "center", alignItems: "center" }, 
+  // 默认头像圆圈（无图片时）/ Default avatar circle (no photo)
+  avatarImage:     { width: 90, height: 90, borderRadius: 45, borderWidth: 2 },                     
+  // 已上传头像的圆形图片 / Uploaded avatar image (circular)
+  avatarEmoji:     { fontSize: 40 },                                                                 
+  // 默认头像 emoji 图标 / Default avatar emoji icon
+  cameraBadge:     { position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, justifyContent: "center",
+                     alignItems: "center", borderWidth: 2 }, 
+  // 叠在头像右下角的相机图标 / Camera icon overlaid on avatar bottom-right
+  changePhotoHint: { fontSize: 12, fontWeight: "600", marginBottom: 12 },                           
+  // "Tap to change photo" 提示文字 / Photo change hint text
+  studentName:     { fontSize: 20, fontWeight: "800", marginBottom: 4 },                            
+  // 学生姓名 / Student name
+  studentCourse:   { fontSize: 13, marginBottom: 12 },                                              
+  // 课程 + 年级 / Course and year text
+  idBadge:         { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 5, marginBottom: 10 },  
+  // 学号胶囊徽章 / Student ID pill badge
+  idText:          { fontWeight: "700", fontSize: 12, letterSpacing: 0.5 },                         
+  // 学号文字 / Student ID text
+  infoRow:         { flexDirection: "row", width: "100%", borderRadius: 12, padding: 12 },          
+  // 邮箱 + 电话横排容器 / Email & phone info row
+  infoItem:        { flex: 1, alignItems: "center", gap: 4 },                                       
+  // 单个信息项（图标 + 值）/ Single info item (icon + value)
+  infoIcon:        { fontSize: 16 },                                                                 
+  // 邮箱 / 电话 emoji 图标 / Emoji icon for email/phone
+  infoVal:         { fontSize: 11, textAlign: "center" },                                           
+  // 邮箱或电话值 / Email or phone value text
+  infoDivider:     { width: 1, marginHorizontal: 8 },                                               
+  // 邮箱和电话之间的竖分隔线 / Vertical divider between email and phone
 
-  sectionTitle:     { fontSize: 11, letterSpacing: 1.5, marginBottom: 8 },
-  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 },
-  sectionSub:       { fontSize: 11 },
+  // ── 主题选择器 / Theme picker ──────────────────────────────────────────────
+  themePickerBtn:  { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16 }, 
+  // 打开主题弹窗的按钮行 / Button row to open ThemePickerModal
+  themeGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },           
+  // 主题卡片两列网格容器 / Two-column grid container for theme cards
+  themeCard:       { width: "47%", borderRadius: 16, padding: 14, alignItems: "center", overflow: "hidden", minHeight: 130, justifyContent: "center" }, 
+  // 单张主题卡片 / Individual theme card
+  themePreviewRow: { flexDirection: "row", gap: 4, marginBottom: 8 },                              
+  // 主题颜色预览点横排 / Row of colour preview dots
+  previewDot:      { width: 8, height: 8, borderRadius: 4 },                                        
+  // 单个颜色预览圆点 / Single colour preview dot
+  themeEmoji:      { fontSize: 28, marginBottom: 6 },                                               
+  // 主题 emoji 图标 / Theme emoji icon
+  themeName:       { fontWeight: "800", fontSize: 15, marginBottom: 2 },                            
+  // 主题名称（粗体）/ Theme name (bold)
+  themeDesc:       { fontSize: 10, textAlign: "center" },                                           
+  // 主题简短描述 / Short theme description
+  activeCheck:     { position: "absolute", top: 8, left: 8, width: 20, height: 20, borderRadius: 10, justifyContent: "center", alignItems: "center" }, 
+  // 当前主题的选中勾徽章 / Active theme checkmark badge
 
-  vehicleCard:     { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  vehicleLeft:     { flexDirection: "row", gap: 12, flex: 1 },
-  vehicleEmoji:    { fontSize: 28, marginTop: 2 },
-  vehiclePlateRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
-  plateText:       { fontSize: 17, fontWeight: "900", letterSpacing: 1 },
-  okuBadge:        { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  okuBadgeText:    { fontSize: 10, fontWeight: "800" },
-  vehicleModel:    { fontSize: 12, marginBottom: 6 },
-  paidBadge:       { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: "flex-start" },
-  paidBadgeText:   { fontSize: 11, fontWeight: "700" },
-  vehicleActions:  { gap: 8 },
-  vActionEdit:     { fontWeight: "700", fontSize: 12 },
-  vActionRemove:   { fontWeight: "700", fontSize: 12 },
-  addVehicleBtn:   { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, paddingVertical: 14, alignItems: "center", marginBottom: 4 },
-  addVehicleText:  { fontWeight: "700", fontSize: 14 },
+  // ── 区域标题 / Section headers ─────────────────────────────────────────────
+  sectionTitle:     { fontSize: 11, letterSpacing: 1.5, marginBottom: 8 },                         
+  // 大写区域标签（如 "MY VEHICLES"）/ Uppercase section label
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }, 
+  // 区域标题 + 右侧副信息横排 / Section title row with right-side info
+  sectionSub:       { fontSize: 11 },                                                               
+  // 区域标题旁的小字副信息 / Small subtitle text next to section title
 
-  settingCard:  { borderWidth: 1, borderRadius: 16, overflow: "hidden", marginBottom: 16 },
-  settingRow:   { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
-  settingIcon:  { width: 38, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  settingLabel: { fontSize: 14, fontWeight: "600" },
-  settingSub:   { fontSize: 11, marginTop: 2 },
-  chevron:      { fontSize: 22, lineHeight: 24 },
-  rowDivider:   { height: 1, marginLeft: 64 },
+  // ── 车辆卡片 / Vehicle cards ───────────────────────────────────────────────
+  vehicleCard:     { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: "row", justifyContent: "space-between", 
+                     alignItems: "flex-start" }, 
+  // 单辆车辆卡片容器 / Single vehicle card container
+  vehicleLeft:     { flexDirection: "row", gap: 12, flex: 1 },                                     
+  // 左侧：图标 + 文字信息 / Left side: icon + text info
+  vehicleEmoji:    { fontSize: 28, marginTop: 2 },                                                  
+  // 车辆 emoji（普通🚗或OKU♿）/ Vehicle emoji (car or wheelchair)
+  vehiclePlateRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },        
+  // 车牌 + OKU 徽章横排 / Plate + OKU badge row
+  plateText:       { fontSize: 17, fontWeight: "900", letterSpacing: 1 },                          
+  // 车牌号码文字 / Vehicle plate number text
+  okuBadge:        { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },  
+  // OKU 标记小徽章 / Small OKU label badge
+  okuBadgeText:    { fontSize: 10, fontWeight: "800" },                                             
+  // OKU 徽章文字 / OKU badge text
+  vehicleModel:    { fontSize: 12, marginBottom: 6 },                                               
+  // 车型描述文字 / Vehicle model description
+  paidBadge:       { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: "flex-start" }, 
+  // 年费缴纳状态徽章 / Annual fee payment status badge
+  paidBadgeText:   { fontSize: 11, fontWeight: "700" },                                             
+  // 缴费状态文字（已付 / 未付）/ Payment status text (paid / unpaid)
+  vehicleActions:  { gap: 8 },                                                                      
+  // 编辑 + 删除按钮的垂直间距 / Vertical gap between edit and remove buttons
+  vActionEdit:     { fontWeight: "700", fontSize: 12 },                                             
+  // "Edit" 操作按钮文字 / Edit action button text
+  vActionRemove:   { fontWeight: "700", fontSize: 12 },                                             
+  // "Remove" 操作按钮文字 / Remove action button text
+  addVehicleBtn:   { borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, paddingVertical: 14, alignItems: "center", marginBottom: 4 }, 
+  // 虚线边框的新增车辆按钮 / Dashed-border add vehicle button
+  addVehicleText:  { fontWeight: "700", fontSize: 14 },                                             
+  // "＋ Add Vehicle" 文字 / Add vehicle button text
 
-  logoutBtn:  { borderWidth: 1, borderRadius: 16, paddingVertical: 15, alignItems: "center", marginBottom: 20 },
-  logoutText: { fontWeight: "800", fontSize: 15 },
-  footer:     { fontSize: 11, textAlign: "center" },
+  // ── 设置列表行 / Settings list rows ───────────────────────────────────────
+  settingCard:  { borderWidth: 1, borderRadius: 16, overflow: "hidden", marginBottom: 16 },        
+  // 设置行组的圆角卡片容器 / Rounded card grouping settings rows
+  settingRow:   { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },              
+  // 单条设置行（图标 + 文字 + 右侧）/ Single setting row (icon + text + right slot)
+  settingIcon:  { width: 38, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center" }, 
+  // 设置行左侧图标容器 / Icon container on the left of a setting row
+  settingLabel: { fontSize: 14, fontWeight: "600" },                                               
+  // 设置项标题文字 / Setting item label
+  settingSub:   { fontSize: 11, marginTop: 2 },                                                    
+  // 设置项副标题描述 / Setting item subtitle/description
+  chevron:      { fontSize: 22, lineHeight: 24 },                                                  
+  // 右侧箭头符号 "›" / Right-side chevron arrow
+  rowDivider:   { height: 1, marginLeft: 64 },                                                     
+  // 设置行之间的分隔线（缩进对齐图标）/ Row divider indented to align with icon
 
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderTopWidth: 1 },
-  handle:  { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 20 },
-  sheetTitle: { fontSize: 20, fontWeight: "800", marginBottom: 4 },
-  sheetSub:   { fontSize: 13, marginBottom: 20 },
+  // ── 登出 + 页脚 / Logout & footer ─────────────────────────────────────────
+  logoutBtn:  { borderWidth: 1, borderRadius: 16, paddingVertical: 15, alignItems: "center", marginBottom: 20 }, 
+  // 登出按钮（红色边框）/ Logout button (red border)
+  logoutText: { fontWeight: "800", fontSize: 15 },                                                 
+  // 登出按钮文字 / Logout button text
+  footer:     { fontSize: 11, textAlign: "center" },                                               
+  // 页面底部版权提示文字 / Footer copyright/info text
 
-  avatarOption:      { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14 },
-  avatarOptionIcon:  { width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  avatarOptionTitle: { fontWeight: "700", fontSize: 15 },
-  avatarOptionSub:   { fontSize: 12, marginTop: 2 },
+  // ── 底部弹窗（通用）/ Bottom sheet (shared) ────────────────────────────────
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },            
+  // 半透明遮罩层，弹窗从底部弹出 / Semi-transparent overlay, sheet slides from bottom
+  sheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderTopWidth: 1 }, 
+  // 弹窗主体（圆角顶部）/ Bottom sheet body (rounded top corners)
+  handle:  { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 20 },    
+  // 弹窗顶部拖动把手条 / Drag handle bar at top of sheet
+  sheetTitle: { fontSize: 20, fontWeight: "800", marginBottom: 4 },                               
+  // 弹窗标题文字 / Sheet title text
+  sheetSub:   { fontSize: 13, marginBottom: 20 },                                                  
+  // 弹窗副标题文字 / Sheet subtitle text
 
-  inputLabel:  { fontSize: 12, letterSpacing: 0.5, marginBottom: 6 },
-  input:       { borderWidth: 1, borderRadius: 12, padding: 13, fontSize: 15, marginBottom: 14 },
-  okuRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 12, padding: 14, marginBottom: 20 },
-  okuLabel:    { fontWeight: "600", fontSize: 14 },
-  okuSub:      { fontSize: 12, marginTop: 2 },
-  saveBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 },
-  saveBtnText: { color: "white", fontWeight: "800", fontSize: 15 },
-  cancelBtn:     { alignItems: "center", paddingVertical: 10 },
-  cancelBtnText: { fontSize: 14 },
+  // ── 头像弹窗选项行 / AvatarModal option rows ───────────────────────────────
+  avatarOption:      { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14 }, 
+  // 单个头像操作选项行（拍照/相册/删除）/ Single avatar option row (camera/gallery/remove)
+  avatarOptionIcon:  { width: 48, height: 48, borderRadius: 14, justifyContent: "center", alignItems: "center" }, 
+  // 操作选项左侧圆角图标容器 / Rounded icon container for option
+  avatarOptionTitle: { fontWeight: "700", fontSize: 15 },                                          
+  // 操作选项标题（如 "Take Photo"）/ Option title text
+  avatarOptionSub:   { fontSize: 12, marginTop: 2 },                                               
+  // 操作选项副标题 / Option subtitle text
+
+  // ── 车辆弹窗表单输入 / VehicleModal form inputs ────────────────────────────
+  inputLabel:  { fontSize: 12, letterSpacing: 0.5, marginBottom: 6 },                             
+  // 输入框上方标签（如 "Plate Number"）/ Label above input field
+  input:       { borderWidth: 1, borderRadius: 12, padding: 13, fontSize: 15, marginBottom: 14 }, 
+  // 文字输入框（车牌 / 车型）/ Text input field (plate / model)
+  okuRow:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 12, padding: 14, marginBottom: 20 }, 
+  // OKU 开关行（标签 + Switch）/ OKU toggle row (label + switch)
+  okuLabel:    { fontWeight: "600", fontSize: 14 },                                                
+  // OKU 开关标题 / OKU toggle label
+  okuSub:      { fontSize: 12, marginTop: 2 },                                                     
+  // OKU 开关副说明 / OKU toggle subtitle
+  saveBtn:     { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 },  
+  // 保存 / 注册按钮 / Save or register button
+  saveBtnText: { color: "white", fontWeight: "800", fontSize: 15 },                               
+  // 保存按钮文字（白色粗体）/ Save button text (white bold)
+  cancelBtn:     { alignItems: "center", paddingVertical: 10 },                                    
+  // 取消按钮（居中无背景）/ Cancel button (centered, no background)
+  cancelBtnText: { fontSize: 14 },                                                                  
+  // 取消按钮文字 / Cancel button text
 });

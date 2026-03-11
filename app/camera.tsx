@@ -44,7 +44,7 @@
 //     Platform, ScrollView,
 //     StyleSheet, Text,
 //     TextInput, TouchableOpacity,
-//     View                      → React Native components
+//     View, image                → React Native components
 //   - useParkingContext          → registered vehicles list (注册车辆列表)
 //   - useTheme                   → current theme colors (当前主题颜色)
 //
@@ -56,9 +56,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  Animated, KeyboardAvoidingView, Platform,
+  Animated,
+  Image,
+  KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TextInput,
-  TouchableOpacity, View,
+  TouchableOpacity, View
 } from "react-native";
 import { useParkingContext } from "../utils/ParkingContext";
 import { useTheme } from "../utils/ThemeContext";
@@ -223,16 +225,17 @@ export default function CameraScreen() {
         keyboardShouldPersistTaps="handled"
       >
 
-        {/* ── Header: back button + title + MDIS badge ──
-            顶部：返回按钮 + 标题 + MDIS 徽章 */}
+        {/* ── Header: back button + title + ITKIA logo ──
+            顶部：返回按钮 + 标题 + ITKIA */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backArrow}>
             <Text style={[styles.backArrowText, { color: T.accent }]}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: T.text }]}>{headerTitle}</Text>
-          <View style={[styles.logoBadge, { backgroundColor: T.accent + "18", borderColor: T.accent + "44" }]}>
-            <Text style={[styles.logoText, { color: T.accent }]}>MDIS</Text>
-          </View>
+            <Image
+              source={require("../assets/images/itkia.png")}
+              style={{ width: 80, height: 40, resizeMode: "contain" }}
+            />
         </View>
 
         {/* ── Active session banner (shown only on entry step when checked in)

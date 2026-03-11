@@ -16,7 +16,6 @@
 //   TabIcon 组件在圆角容器内显示 emoji 图标。
 //   When focused:
 //     - Background tinted with accent color at 12% opacity (背景显示主题色，透明度12%)
-//     - Small dot indicator appears below the emoji (emoji 下方出现小圆点指示器)
 //   When unfocused:
 //     - Transparent background, muted label color (透明背景，标签文字使用静音色)
 //

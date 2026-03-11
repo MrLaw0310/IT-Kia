@@ -41,8 +41,9 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated, Image, Linking, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View,
+  Alert, Animated, Image, Linking, Modal,
+  ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
 } from "react-native";
 import { useParkingContext } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
@@ -110,6 +111,14 @@ function AvailabilityRing({ available, total, T }: { available: number; total: n
   );
 }
 
+// ─── Security contacts (保安联系方式) ────────────────────────────────────────
+// Update these numbers for production (生产环境请替换为真实号码)
+const SECURITY_CONTACTS = [
+  { name: "Main Security Post",   phone: "+607-000-0001" },
+  { name: "Campus Control Room",  phone: "+607-000-0002" },
+  { name: "Emergency Hotline",    phone: "+607-000-0003" },
+];
+
 // ─── Main Screen Component (主页面组件) ──────────────────────────────────────
 
 /*
@@ -118,7 +127,9 @@ function AvailabilityRing({ available, total, T }: { available: number; total: n
 */
 export default function HomeScreen() {
   // ── Read parking data from context (从 Context 读取停车数据) ─────────────
-  const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal } = useParkingContext();
+  const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal,
+          spots, checkIn: ctxCheckIn, checkOut: ctxCheckOut,
+          vehicles, activeSession } = useParkingContext();
 
   // ── Compute totals (计算汇总数值) ─────────────────────────────────────────
   const TOTAL_SPOTS     = totalNormal + okuTotal;  // All spots (全部车位)
@@ -135,14 +146,12 @@ export default function HomeScreen() {
   // ── Real-time clock (实时时钟) ──────────────────────────────────────────
   const [now, setNow] = useState(new Date());
   useEffect(() => {
-    // Update every second (每秒更新一次)
     const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer); // Clear on unmount (组件卸载时清除)
+    return () => clearInterval(timer);
   }, []);
 
   const hour     = now.getHours();
   const timeStr  = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  // Dynamic greeting based on time of day (根据时间动态问候语)
   const greeting = hour < 12 ? "Good Morning 🌅" : hour < 18 ? "Good Afternoon ☀️" : "Good Evening 🌙";
 
   // ── Entrance animation (进场动画：淡入+上滑) ──────────────────────────────
@@ -156,8 +165,6 @@ export default function HomeScreen() {
   /*
      Open Google Maps with directions to MDIS campus.
      打开 Google Maps 导航到 MDIS 校园。
-     Falls back to geo: URI if Google Maps is not available.
-     如果 Google Maps 不可用，回退到 geo: URI。
   */
   function openMapsToMDIS() {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${MDIS_LAT},${MDIS_LNG}&travelmode=driving`;
@@ -167,10 +174,111 @@ export default function HomeScreen() {
   }
 
   // ── Status color and label (状态颜色和标签) ───────────────────────────────
-  // Based on % of available spots (根据空位百分比)
   const pct         = Math.round((AVAILABLE_SPOTS / TOTAL_SPOTS) * 100);
   const statusColor = pct > 40 ? T.green : pct > 20 ? T.orange : T.red;
   const statusLabel = pct > 40 ? "Plenty of Space" : pct > 20 ? "Filling Up" : "Almost Full";
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 🚨 QUICK ACTION 1 — Security Alert Modal (保安联系弹窗)
+  // ══════════════════════════════════════════════════════════════════════════
+  const [securityModal, setSecurityModal] = useState(false); // Modal visibility (弹窗是否显示)
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ✅ QUICK ACTION 2 — Quick Check-In / Check-Out Modal
+  // • If NOT checked in  → opens modal to enter spot ID and check in
+  //   未签入 → 打开弹窗输入车位号签入
+  // • If already checked in → shows Alert asking "Are you sure to check out?"
+  //   已签入 → 弹出确认框询问是否签出
+  // ══════════════════════════════════════════════════════════════════════════
+  const [checkInModal, setCheckInModal] = useState(false); // Modal visibility (弹窗是否显示)
+  const [spotInput,    setSpotInput]    = useState("");    // User-typed spot ID (用户输入的车位号)
+
+  /*
+     Button handler — branches on whether a session is active.
+     按钮处理器 — 根据是否有活动会话分支。
+  */
+  function handleCheckInOutPress() {
+    if (activeSession) {
+      // Already checked in → confirm checkout (已签入 → 确认签出)
+      Alert.alert(
+        "🚗 Check Out?",
+        `You are currently parked at Spot ${activeSession.spotId}.\nAre you sure you want to check out?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Check Out", style: "destructive",
+            onPress: () => {
+              ctxCheckOut();
+              Alert.alert("👋 Checked Out!", `Spot ${activeSession.spotId} is now free.\nDrive safely!`);
+            },
+          },
+        ]
+      );
+    } else {
+      // Not checked in → open check-in modal (未签入 → 打开签入弹窗)
+      setSpotInput("");
+      setCheckInModal(true);
+    }
+  }
+
+  /*
+     Validate spot input and trigger check-in.
+     验证车位号输入，执行签入。
+  */
+  function handleQuickCheckIn() {
+    const id = spotInput.trim().toUpperCase(); // Normalise to uppercase (转为大写)
+    if (!id) { Alert.alert("Please enter a spot number."); return; }
+
+    const spot = spots.find(s => s.id === id);
+    if (!spot) {
+      Alert.alert("Spot not found", `"${id}" does not exist.\nTry format: R1-1 to R7-10`);
+      return;
+    }
+    if (spot.status !== "free") {
+      Alert.alert("Spot Occupied", `Spot ${id} is already taken.`);
+      return;
+    }
+    const plate = vehicles[0]?.plate ?? "N/A"; // Use first registered vehicle (使用第一辆注册车辆)
+    ctxCheckIn(spot.id, plate);
+    setCheckInModal(false);
+    setSpotInput("");
+    Alert.alert("✅ Checked In!", `Parked at Spot ${id}`);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 🔍 QUICK ACTION 3 — Vehicle Lookup Modal (车牌查询弹窗)
+  // User types a plate → searches registered vehicles → shows contact info
+  // 用户输入车牌 → 查询已注册车辆 → 显示联系方式
+  // ══════════════════════════════════════════════════════════════════════════
+  const [lookupModal,   setLookupModal]   = useState(false); // Modal visibility (弹窗是否显示)
+  const [plateInput,    setPlateInput]    = useState("");    // User-typed plate (用户输入的车牌)
+  const [lookupResult,  setLookupResult]  = useState<{ name: string; plate: string; phone: string } | null>(null);
+
+  // Hardcoded vehicle registry — replace with real API/database in production
+  // 硬编码车辆注册表 — 生产环境替换为真实 API / 数据库
+  const VEHICLE_REGISTRY: Record<string, { name: string; phone: string }> = {
+    "WXY 1234": { name: "Ahmad Faiz",    phone: "+60 12-345 6789" },
+    "JHB 5678": { name: "Nurul Ain",     phone: "+60 11-234 5678" },
+    "JDT 9012": { name: "Raj Kumar",     phone: "+60 16-789 0123" },
+    "SGR 3456": { name: "Lee Mei Ling",  phone: "+60 17-456 7890" },
+  };
+
+  /*
+     Look up a vehicle by plate number.
+     通过车牌号查询车辆信息。
+  */
+  function handleVehicleLookup() {
+    const plate = plateInput.trim().toUpperCase();
+    if (!plate) { Alert.alert("Please enter a plate number."); return; }
+
+    const found = VEHICLE_REGISTRY[plate];
+    if (found) {
+      setLookupResult({ name: found.name, plate, phone: found.phone });
+    } else {
+      setLookupResult(null);
+      Alert.alert("Not Found", `No record for plate "${plate}".`);
+    }
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: "transparent" }]}>
@@ -263,36 +371,59 @@ export default function HomeScreen() {
 
         {/* ── Quick action buttons (快捷操作按钮) ── */}
         <Text style={[styles.sectionTitle, { color: T.muted }]}>QUICK ACTIONS</Text>
-        {[
-          /* Row 1 (第一行) */
-          [
-            { icon: "🗺️", label: "View Map",   bg: T.accent, textColor: "white", onPress: () => router.push("/(tabs)/map" as any) },
-            { icon: "📷", label: "Scan Plate", bg: T.card,   textColor: T.text,  onPress: () => router.push("/camera" as any) },
-          ],
-          /* Row 2 (第二行) */
-          [
-            { icon: "🕐", label: "History",    bg: T.card,   textColor: T.text,  onPress: () => router.push("/(tabs)/history" as any) },
-            { icon: "🧭", label: "Navigate",   bg: T.card,   textColor: T.text,  onPress: openMapsToMDIS },
-          ],
-        ].map((row, ri) => (
-          <View key={ri} style={styles.actionsRow}>
-            {row.map(a => (
-              <TouchableOpacity
-                key={a.label}
-                style={[styles.actionBtn, {
-                  backgroundColor: a.bg,
-                  borderWidth: a.bg === T.card ? 1 : 0,
-                  borderColor: T.border,
-                }]}
-                onPress={a.onPress}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.actionIcon}>{a.icon}</Text>
-                <Text style={[styles.actionText, { color: a.textColor }]}>{a.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
+
+        {/* Row 1: Security | Scan Plate (第一行：保安 | 扫描车牌) */}
+        <View style={styles.actionsRow}>
+          {/* 🚨 Security — opens emergency contacts modal (打开保安联系弹窗) */}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+            onPress={() => setSecurityModal(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIcon}>🚨</Text>
+            <Text style={[styles.actionText, { color: "red" }]}>Security</Text>
+          </TouchableOpacity>
+
+          {/* 📷 Scan Plate — navigates to camera screen (跳转到摄像头扫描页) */}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+            onPress={() => router.push("/camera" as any)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIcon}>📷</Text>
+            <Text style={[styles.actionText, { color: T.text }]}>Scan Plate</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 2: Quick Check-In / Check-Out | Vehicle Lookup (第二行：快速签入/签出 | 车辆查询) */}
+        <View style={styles.actionsRow}>
+          {/* ✅/🚗 Quick Check-In or Check Out — toggles based on activeSession
+              未签入显示 Quick Check-In（绿色），已签入显示 Check Out（红色） */}
+          <TouchableOpacity
+            style={[styles.actionBtn, activeSession 
+              ? {backgroundColor: T.card, borderWidth: 1, borderColor: T.red }
+              : {backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+            onPress={handleCheckInOutPress}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIcon}>{activeSession ? "🚗" : "✅"}</Text>
+            <Text style={[styles.actionText, activeSession
+              ? { color: T.red }
+              : { color: T.green }]}>
+              {activeSession ? "Check Out" : "Quick Check-In"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 🔍 Vehicle Lookup — opens plate search modal (打开车牌查询弹窗) */}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+            onPress={() => { setPlateInput(""); setLookupResult(null); setLookupModal(true); }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIcon}>🔍</Text>
+            <Text style={[styles.actionText, { color: T.text }]}>Vehicle Lookup</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── Recent activity list (最近活动列表) ── */}
         <Text style={[styles.sectionTitle, { color: T.muted }]}>RECENT ACTIVITY</Text>
@@ -318,6 +449,161 @@ export default function HomeScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          🚨 Security Alert Modal
+          Shows security contacts with direct call buttons.
+          显示保安联系方式，可直接拨号。
+          ══════════════════════════════════════════════════════════════════════ */}
+      <Modal transparent animationType="slide" visible={securityModal} onRequestClose={() => setSecurityModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setSecurityModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: T.card, borderColor: T.border }]}>
+            {/* Drag handle (拖动把手) */}
+            <View style={[styles.handle, { backgroundColor: T.border }]} />
+
+            {/* Header (标题区) */}
+            <View style={[styles.modalIconCircle, { backgroundColor: T.red + "20", borderColor: T.red + "44" }]}>
+              <Text style={{ fontSize: 28 }}>🚨</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: T.red }]}>Contact Security</Text>
+            <Text style={[styles.modalSub,   { color: T.muted }]}>Contact campus security · Tap a number to call</Text>
+
+            {/* Security contact list (保安联系人列表) */}
+            {SECURITY_CONTACTS.map((c, i) => (
+              <TouchableOpacity
+                key={i}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(`tel:${c.phone.replace(/\s|-/g, "")}`)}
+                style={[styles.contactRow, { backgroundColor: T.bg, borderColor: T.border }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.contactName,  { color: T.text }]}>{c.name}</Text>
+                </View>
+                <View style={[styles.callBadge, { backgroundColor: T.green + "20", borderColor: T.green + "55" }]}>
+                  <Text style={{ fontSize: 14 }}>📞</Text>
+                  <Text style={[styles.callNum, { color: T.green }]}>{c.phone}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setSecurityModal(false)}>
+              <Text style={[styles.cancelBtnText, { color: T.muted }]}>Close</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          ✅ Quick Check-In Modal
+          User enters spot ID → checks in without opening the Map screen.
+          用户输入车位号 → 无需打开地图页即可签入。
+          ══════════════════════════════════════════════════════════════════════ */}
+      <Modal transparent animationType="slide" visible={checkInModal} onRequestClose={() => setCheckInModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setCheckInModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: T.card, borderColor: T.border }]}>
+            <View style={[styles.handle, { backgroundColor: T.border }]} />
+
+            {/* Header (标题区) */}
+            <View style={[styles.modalIconCircle, { backgroundColor: T.accent + "20", borderColor: T.accent + "44" }]}>
+              <Text style={{ fontSize: 28 }}>✅</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: T.text }]}>Quick Check-In</Text>
+            <Text style={[styles.modalSub,   { color: T.muted }]}>Enter your spot number</Text>
+
+            {/* Spot number input (车位号输入框) */}
+            <Text style={[styles.inputLabel, { color: T.muted }]}>Spot Number</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={spotInput}
+              onChangeText={t => setSpotInput(t.toUpperCase())}
+              placeholder="e.g. R1-1, R3-5, R7-10"
+              placeholderTextColor={T.muted}
+              autoCapitalize="characters"
+              autoFocus
+            />
+            {/* Format hint (格式提示) */}
+            <Text style={[styles.formatHint, { color: T.muted }]}>
+              Format: R(row)-(col) · Rows 1–7 · Cols 1–10{"\n"}
+            </Text>
+
+            {/* Confirm button (确认按钮) */}
+            <TouchableOpacity
+              style={[styles.confirmBtn, { backgroundColor: T.accent }]}
+              onPress={handleQuickCheckIn}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.confirmBtnText}>✅  Check In Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setCheckInModal(false)}>
+              <Text style={[styles.cancelBtnText, { color: T.muted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          🔍 Vehicle Lookup Modal
+          User enters a plate → shows registered owner + phone number.
+          用户输入车牌 → 显示车主姓名和电话。
+          ══════════════════════════════════════════════════════════════════════ */}
+      <Modal transparent animationType="slide" visible={lookupModal} onRequestClose={() => setLookupModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setLookupModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.sheet, { backgroundColor: T.card, borderColor: T.border }]}>
+            <View style={[styles.handle, { backgroundColor: T.border }]} />
+
+            {/* Header (标题区) */}
+            <View style={[styles.modalIconCircle, { backgroundColor: T.blue + "20", borderColor: T.blue + "44" }]}>
+              <Text style={{ fontSize: 28 }}>🔍</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: T.text }]}>Vehicle Lookup</Text>
+            <Text style={[styles.modalSub,   { color: T.muted }]}>Enter a plate to find the owner</Text>
+
+            {/* Plate input (车牌输入框) */}
+            <Text style={[styles.inputLabel, { color: T.muted }]}>Plate Number</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={plateInput}
+              onChangeText={t => { setPlateInput(t.toUpperCase()); setLookupResult(null); }}
+              placeholder="e.g. WXY 1234"
+              placeholderTextColor={T.muted}
+              autoCapitalize="characters"
+              autoFocus
+            />
+
+            {/* Search button (搜索按钮) */}
+            <TouchableOpacity
+              style={[styles.confirmBtn, { backgroundColor: T.blue ?? T.accent }]}
+              onPress={handleVehicleLookup}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.confirmBtnText}>🔍  Search</Text>
+            </TouchableOpacity>
+
+            {/* Result card — shown only after a successful lookup (查询成功后显示结果卡片) */}
+            {lookupResult && (
+              <View style={[styles.resultCard, { backgroundColor: T.bg, borderColor: T.accent + "55" }]}>
+                <Text style={[styles.resultPlate, { color: T.accent }]}>🚗 {lookupResult.plate}</Text>
+                <View style={styles.resultRow}>
+                  <Text style={[styles.resultKey,  { color: T.muted }]}>Owner</Text>
+                  <Text style={[styles.resultVal,  { color: T.text  }]}>{lookupResult.name}</Text>
+                </View>
+                <View style={styles.resultRow}>
+                  <Text style={[styles.resultKey,  { color: T.muted }]}>Phone</Text>
+                  {/* Tap phone number to call directly (点击电话直接拨号) */}
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${lookupResult.phone.replace(/\s|-/g, "")}`)}>
+                    <Text style={[styles.resultPhone, { color: T.green }]}>📞 {lookupResult.phone}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setLookupModal(false)}>
+              <Text style={[styles.cancelBtnText, { color: T.muted }]}>Close</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -384,4 +670,63 @@ const styles = StyleSheet.create({
   activityPlate: { fontWeight: "700", fontSize: 14 },
   activityAction:{ fontSize: 12 },
   activityTime:  { fontSize: 12 },
+
+  // Bottom sheet modals — shared (底部弹窗通用样式)
+  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },     
+  // Semi-transparent backdrop (半透明遮罩)
+  sheet:      { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderTopWidth: 1 }, 
+  // Sheet body (弹窗主体)
+  handle:     { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 20 },    
+  // Drag handle (拖动把手)
+  modalIconCircle: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, justifyContent: "center", alignItems: "center", 
+    alignSelf: "center", marginBottom: 12 }, 
+  // Emoji icon circle (图标圆圈)
+  modalTitle: { fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 4 },             
+  // Modal title (弹窗标题)
+  modalSub:   { fontSize: 13, textAlign: "center", marginBottom: 20 },                               
+  // Modal subtitle (弹窗副标题)
+  cancelBtn:  { alignItems: "center", paddingVertical: 12 },                                          
+  // Cancel / close button (取消/关闭按钮)
+  cancelBtnText: { fontSize: 14 },                                                                    
+  // Cancel button text (取消按钮文字)
+
+  // Security Modal — contact rows (保安弹窗联系人行)
+  contactRow:    { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 }, 
+  // Contact row container (联系人行容器)
+  contactName:   { fontWeight: "700", fontSize: 14, marginBottom: 2 },                                
+  // Contact English name (联系人英文名)
+  contactNameZh: { fontSize: 12 },                                                                    
+  // Contact Chinese name (联系人中文名)
+  callBadge:     { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, 
+    paddingVertical: 6 }, 
+  // Call button badge (拨号按钮徽章)
+  callNum:       { fontWeight: "700", fontSize: 12 },                                                 
+  // Phone number text (电话号码文字)
+
+  // Check-In & Lookup Modals — shared input styles (签入和查询弹窗共用输入样式)
+  // Input label (输入框标签)
+  inputLabel:  { fontSize: 12, letterSpacing: 0.5, marginBottom: 6 },                               
+  // Text input field (文字输入框)
+  input:       { borderWidth: 1, borderRadius: 12, padding: 13, fontSize: 15, marginBottom: 10 },   
+  // Format hint below input (输入框下方格式提示)
+  formatHint:  { fontSize: 11, lineHeight: 16, marginBottom: 16, textAlign: "center" },              
+  // Confirm / search button (确认/搜索按钮)
+  confirmBtn:  { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 },    
+  // Confirm button text (white bold) (确认按钮文字)
+  confirmBtnText: { color: "white", fontWeight: "800", fontSize: 15 },                               
+  
+
+  // Vehicle Lookup — result card (车辆查询结果卡片)
+  // Result card container (结果卡片容器)
+  resultCard:  { borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 10 },                 
+  // Found plate number (查到的车牌号)
+  resultPlate: { fontSize: 18, fontWeight: "900", marginBottom: 10, letterSpacing: 1 },             
+  // Key-value row (键值行)
+  resultRow:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },          
+  // Result label (结果键名)
+  resultKey:   { fontSize: 13 },                                                                     
+  // Result value text (结果值)
+  resultVal:   { fontWeight: "700", fontSize: 13 },                                                  
+  // Tappable phone number (可点击的电话号码)
+  resultPhone: { fontWeight: "700", fontSize: 13 },                                                  
 });

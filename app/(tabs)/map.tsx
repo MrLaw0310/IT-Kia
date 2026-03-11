@@ -682,87 +682,172 @@ export default function MapScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+
+  // ── 页面容器 / Page containers ─────────────────────────────────────────────
   screen: { flex: 1 },
-  scroll: { padding: 20, paddingTop: 56, paddingBottom: 100, backgroundColor: "transparent" },
+  // 全屏容器，背景由 _layout.tsx 渐变填充 / Full-screen wrapper, gradient bg from _layout.tsx                                                                             
+  scroll: { padding: 20, paddingTop: 56, paddingBottom: 100, backgroundColor: "transparent" }, 
+  // 可滚动内容区，底部留空给 tab bar / Scrollable content, bottom pad for tab bar  
 
-  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  subtitle:  { fontSize: 13 },
+  // ── 顶部标题栏 / Page header ───────────────────────────────────────────────
+  header:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }, 
+  // 标题 + 校徽横排 / Title row with school logo
+  pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },                              
+  // 页面主标题 "Parking Map" / Main page title
+  subtitle:  { fontSize: 13 },                                                                       
+  // 副标题 "MDIS Educity · Student Lot" / Subtitle text
 
-  autoBanner:      { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 },
-  autoBannerIcon:  { fontSize: 22 },
-  autoBannerTitle: { fontSize: 13, fontWeight: "800" },
-  autoBannerSub:   { fontSize: 11, marginTop: 2 },
-  distBarWrap:     { width: 50, height: 5, borderRadius: 999, overflow: "hidden" },
-  distBarFill:     { height: "100%", borderRadius: 999 },
+  // ── GPS 监听横幅 / GPS monitoring banner ─────────────────────────────────
+  autoBanner:      { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }, 
+  // 签入后显示的 GPS 监听状态横幅 / GPS monitoring status banner shown while checked in
+  autoBannerIcon:  { fontSize: 22 },                                                                 
+  // 横幅左侧 📡 图标 / Satellite icon on banner left
+  autoBannerTitle: { fontSize: 13, fontWeight: "800" },                                             
+  // 横幅标题 "GPS Monitoring Active" / Banner title text
+  autoBannerSub:   { fontSize: 11, marginTop: 2 },                                                  
+  // 横幅副标题（距离 + 自动签出阈值）/ Banner subtitle (distance + auto-checkout threshold)
+  distBarWrap:     { width: 50, height: 5, borderRadius: 999, overflow: "hidden" },                 
+  // 距离进度条外层容器（圆角裁切）/ Distance progress bar outer wrapper (clips fill)
+  distBarFill:     { height: "100%", borderRadius: 999 },                                           
+  // 距离进度条填充（颜色随距离变化）/ Progress bar fill (colour changes with distance)
 
-  gpsBtn:      { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 },
-  gpsBtnIcon:  { fontSize: 26 },
-  gpsBtnTitle: { fontSize: 14, fontWeight: "800" },
-  gpsBtnSub:   { fontSize: 11, marginTop: 2 },
-  gpsClearBtn: { padding: 6 },
-  gpsClearText:{ fontSize: 16 },
+  // ── GPS 定位按钮 / GPS find-my-spot button ─────────────────────────────────
+  gpsBtn:      { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }, 
+  // GPS 定位 / 停车状态按钮整体 / GPS locate / parking status button
+  gpsBtnIcon:  { fontSize: 26 },                                                                     
+  // 按钮左侧图标（📍🔄❌）/ Button left icon
+  gpsBtnTitle: { fontSize: 14, fontWeight: "800" },                                                 
+  // 按钮主标题（随状态变色）/ Button title (colour changes with GPS status)
+  gpsBtnSub:   { fontSize: 11, marginTop: 2 },                                                      
+  // 按钮副标题提示文字 / Button subtitle hint text
+  gpsClearBtn: { padding: 6 },                                                                       
+  // 停车时右侧 ✕ 快速签出按钮 / Quick checkout ✕ button when parked
+  gpsClearText:{ fontSize: 16 },                                                                     
+  // ✕ 符号文字 / ✕ icon text
 
-  statsRow:  { flexDirection: "row", gap: 8, marginBottom: 14 },
-  statChip:  { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center" },
-  statNum:   { fontSize: 18, fontWeight: "900" },
-  statLabel: { fontSize: 10, marginTop: 2 },
+  // ── 统计数据行 / Stats chips row ───────────────────────────────────────────
+  statsRow:  { flexDirection: "row", gap: 8, marginBottom: 14 },                                    
+  // 四个统计数据横排容器 / Row container for four stat chips
+  statChip:  { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 10, alignItems: "center" }, 
+  // 单个统计数据卡片（Free / Occupied / OKU / Total）/ Individual stat chip
+  statNum:   { fontSize: 18, fontWeight: "900" },                                                   
+  // 统计数字（大号加粗）/ Stat number (large bold)
+  statLabel: { fontSize: 10, marginTop: 2 },                                                        
+  // 统计标签文字（如 "Free"）/ Stat label text
 
-  filterRow:  { marginBottom: 14 },
-  filterPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 7, marginRight: 8 },
-  filterText: { fontSize: 13, fontWeight: "600" },
+  // ── 筛选器 / Filter pills ──────────────────────────────────────────────────
+  filterRow:  { marginBottom: 14 },                                                                  
+  // 横向滚动筛选器容器行 / Horizontal scrollable filter row
+  filterPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 7, marginRight: 8 }, 
+  // 单个筛选胶囊按钮（All / Free / Occupied）/ Individual filter pill button
+  filterText: { fontSize: 13, fontWeight: "600" },                                                  
+  // 筛选按钮文字 / Filter button text
 
-  gridCard:  { borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 16 },
-  topRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  gridTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  exitBadge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  exitText:  { fontWeight: "800", fontSize: 12 },
-  rowWrap:   { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  rowLabel:  { fontSize: 10, width: 22, fontWeight: "600" },
-  rowSpots:  { flexDirection: "row", gap: 5, flex: 1 },
+  // ── 停车格子卡片 / Parking grid card ──────────────────────────────────────
+  gridCard:  { borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 16 },                  
+  // 整个格子地图卡片容器 / Outer card wrapping the entire spot grid
+  topRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }, 
+  // 卡片顶部：标题 + EXIT 徽章 / Card top: title + EXIT badge
+  gridTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },                              
+  // 格子卡片标题（"🅿️ MDIS Student Parking"）/ Grid card title text
+  exitBadge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },       
+  // 右上角 EXIT 方向标签 / Top-right EXIT direction badge
+  exitText:  { fontWeight: "800", fontSize: 12 },                                                   
+  // "EXIT ↗" 文字 / EXIT badge text
+  rowWrap:   { flexDirection: "row", alignItems: "center", marginBottom: 8 },                      
+  // 单行车位（行标签 R1–R7 + 格子）/ Single row wrapper (label + spots)
+  rowLabel:  { fontSize: 10, width: 22, fontWeight: "600" },                                        
+  // 行标签 R1、R2… 固定宽度 / Fixed-width row label (R1, R2…)
+  rowSpots:  { flexDirection: "row", gap: 5, flex: 1 },                                            
+  // 一行内所有格子的横排 / Horizontal row of all spots in a row
 
-  spotWrapper: { flex: 1, aspectRatio: 0.7, justifyContent: "center", alignItems: "center" },
-  spot:        { width: "100%", height: "100%", borderRadius: 6, borderWidth: 1, justifyContent: "center", alignItems: "center" },
-  okuSpot:     { borderWidth: 2 },
-  spotText:    { fontSize: 9, fontWeight: "800" },
+  // ── 停车格子 / Spot cells ──────────────────────────────────────────────────
+  spotWrapper: { flex: 1, aspectRatio: 0.7, justifyContent: "center", alignItems: "center" },      
+  // 格子占位容器（固定比例，防止脉冲动画撑大布局）/ Fixed-ratio cell wrapper (prevents pulse from shifting layout)
+  spot:        { width: "100%", height: "100%", borderRadius: 6, borderWidth: 1, justifyContent: "center", alignItems: "center" }, 
+  // 格子本体（颜色和边框通过 inline style 动态传入）/ Spot cell body (color/border via inline style)
+  okuSpot:     { borderWidth: 2 },                                                                  
+  // OKU 专用位加粗边框覆盖样式 / Thicker border override for OKU spots
+  spotText:    { fontSize: 9, fontWeight: "800" },                                                  
+  // 格子内文字（列号 或 ♿）/ Spot cell text (col number or wheelchair emoji)
 
-  bottomRow:    { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },
-  entranceBadge:{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  entranceText: { fontWeight: "800", fontSize: 12 },
+  // ── 格子地图底部行 / Grid bottom row ──────────────────────────────────────
+  bottomRow:    { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },                
+  // ENTRANCE 标签靠右对齐行 / Right-aligned row for ENTRANCE badge
+  entranceBadge:{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },    
+  // ENTRANCE 方向标签 / ENTRANCE direction badge
+  entranceText: { fontWeight: "800", fontSize: 12 },                                                
+  // "ENTRANCE ↘" 文字 / ENTRANCE badge text
 
-  legend:      { flexDirection: "row", justifyContent: "center", gap: 18, marginBottom: 10 },
-  legendItem:  { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot:   { width: 10, height: 10, borderRadius: 3 },
-  legendLabel: { fontSize: 12 },
-  hint:        { fontSize: 12, textAlign: "center" },
+  // ── 图例 + 提示 / Legend & hint ────────────────────────────────────────────
+  legend:      { flexDirection: "row", justifyContent: "center", gap: 18, marginBottom: 10 },      
+  // 颜色图例横排（Free / Occupied / OKU / My Spot）/ Colour legend row
+  legendItem:  { flexDirection: "row", alignItems: "center", gap: 6 },                             
+  // 单个图例项（圆点 + 文字）/ Single legend item (dot + label)
+  legendDot:   { width: 10, height: 10, borderRadius: 3 },                                         
+  // 图例颜色方块 / Legend colour square dot
+  legendLabel: { fontSize: 12 },                                                                    
+  // 图例文字（如 "Free"）/ Legend label text
+  hint:        { fontSize: 12, textAlign: "center" },                                              
+  // 底部操作提示文字 / Bottom hint text ("Tap any spot…")
 
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  sheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderTopWidth: 1 },
-  handle:  { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 20 },
+  // ── 底部弹窗（通用）/ Bottom sheet (shared) ────────────────────────────────
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },            
+  // 半透明遮罩，弹窗从底部弹出 / Semi-transparent overlay, sheet slides from bottom
+  sheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderTopWidth: 1 }, 
+  // 弹窗主体（圆角顶部）/ Bottom sheet body (rounded top corners)
+  handle:  { width: 40, height: 4, borderRadius: 999, alignSelf: "center", marginBottom: 20 },    
+  // 弹窗顶部拖动把手条 / Drag handle bar at top of sheet
 
-  modalHeader:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  spotBadge:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
-  spotBadgeText:  { fontSize: 18, fontWeight: "900" },
+  // ── 车位详情弹窗（SpotModal）/ Spot detail modal ───────────────────────────
+  modalHeader:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }, 
+  // 车位编号徽章 + 状态标签横排 / Spot ID badge + status pill row
+  spotBadge:      { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }, 
+  // 车位编号徽章（如 "🅿️ R1-3"）/ Spot ID badge
+  spotBadgeText:  { fontSize: 18, fontWeight: "900" },                                             
+  // 车位编号文字（大号加粗）/ Spot ID text (large bold)
   statusPill:     { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  statusPillText: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  detailBox:      { borderRadius: 14, padding: 14, marginBottom: 14, gap: 12 },
-  detailRow:      { flexDirection: "row", justifyContent: "space-between" },
-  detailKey:      { fontSize: 13 },
-  detailVal:      { fontWeight: "700", fontSize: 13 },
-  okuNote:        { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },
-  okuNoteText:    { fontSize: 12, fontWeight: "600" },
-  actionBtn:      { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 },
-  actionBtnText:  { color: "white", fontWeight: "800", fontSize: 15 },
-  closeBtn:       { alignItems: "center", paddingVertical: 8 },
-  closeBtnText:   { fontSize: 14 },
+  // 车位状态胶囊标签（FREE / OCCUPIED / YOUR SPOT）/ Status pill label
+  statusPillText: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },                           
+  // 状态标签文字（全大写）/ Status pill text (uppercase)
+  detailBox:      { borderRadius: 14, padding: 14, marginBottom: 14, gap: 12 },                    
+  // 车位详情信息表容器 / Spot detail info table container
+  detailRow:      { flexDirection: "row", justifyContent: "space-between" },                       
+  // 单行详情（Key : Value）/ Single detail row (key : value)
+  detailKey:      { fontSize: 13 },                                                                 
+  // 详情键名文字（如 "Row"、"Type"）/ Detail key text
+  detailVal:      { fontWeight: "700", fontSize: 13 },                                             
+  // 详情值文字（加粗）/ Detail value text (bold)
+  okuNote:        { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },             
+  // OKU 专用位提示条 / OKU reserved notice bar
+  okuNoteText:    { fontSize: 12, fontWeight: "600" },                                              
+  // OKU 提示文字 / OKU notice text
+  actionBtn:      { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 }, 
+  // 主操作按钮（Check In / Check Out / Taken）/ Primary action button
+  actionBtnText:  { color: "white", fontWeight: "800", fontSize: 15 },                             
+  // 主操作按钮文字（白色）/ Action button text (white)
+  closeBtn:       { alignItems: "center", paddingVertical: 8 },                                    
+  // 底部关闭按钮 / Bottom close button
+  closeBtnText:   { fontSize: 14 },                                                                 
+  // 关闭按钮文字 / Close button text
 
-  warningOverlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center", padding: 24 },
-  warningBox:          { borderRadius: 24, padding: 28, width: "100%", borderWidth: 1, alignItems: "center" },
-  warningIconCircle:   { width: 72, height: 72, borderRadius: 36, borderWidth: 2, justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  warningTitle:        { fontSize: 20, fontWeight: "900", marginBottom: 14 },
-  warningBody:         { fontSize: 13, lineHeight: 22, textAlign: "center", marginBottom: 24 },
-  warningCloseBtn:     { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, alignItems: "center", width: "100%", marginBottom: 10 },
-  warningCloseBtnText: { color: "white", fontWeight: "800", fontSize: 15 },
-  warningOverrideBtn:  { paddingVertical: 8 },
-  warningOverrideText: { fontSize: 12 },
+  // ── OKU 警告弹窗（OKUWarningModal）/ OKU warning modal ─────────────────────
+  warningOverlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center", padding: 24 }, 
+  // 更深的遮罩（居中显示警告框）/ Darker overlay, warning box centered
+  warningBox:          { borderRadius: 24, padding: 28, width: "100%", borderWidth: 1, alignItems: "center" },                        
+  // 警告框主体（红色边框）/ Warning box body (red border)
+  warningIconCircle:   { width: 72, height: 72, borderRadius: 36, borderWidth: 2, justifyContent: "center", alignItems: "center", marginBottom: 16 }, 
+  // ⚠️ 图标圆圈 / Warning icon circle
+  warningTitle:        { fontSize: 20, fontWeight: "900", marginBottom: 14 },                      
+  // 警告标题 "OKU Spot Warning" / Warning title text
+  warningBody:         { fontSize: 13, lineHeight: 22, textAlign: "center", marginBottom: 24 },    
+  // 警告详细说明文字（多行居中）/ Warning body text (multi-line centered)
+  warningCloseBtn:     { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, alignItems: "center", width: "100%", marginBottom: 10 }, 
+  // 主按钮 "Find Another Spot"（绿色）/ Primary button "Find Another Spot" (green)
+  warningCloseBtnText: { color: "white", fontWeight: "800", fontSize: 15 },                        
+  // 主按钮文字（白色粗体）/ Primary button text (white bold)
+  warningOverrideBtn:  { paddingVertical: 8 },                                                      
+  // 次按钮 "I have OKU status"（仅文字）/ Secondary override button (text only)
+  warningOverrideText: { fontSize: 12 },                                                            
+  // 次按钮文字 / Override button text
 });
