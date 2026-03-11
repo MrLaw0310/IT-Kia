@@ -26,7 +26,8 @@
 //   - createContext, useContext, useEffect, useState → Context API
 //
 // EXPORTS (导出):
-//   - ThemeKey        → type: one of the 5 theme identifiers ("tech"|"navy"|"galaxy"|"sky"|"fantasy") (5 个主题标识符的类型)
+//   - ThemeKey        → type: one of the 5 theme identifiers 
+//                        ("tech"|"navy"|"galaxy"|"sky"|"fantasy") (5 个主题标识符的类型)
 //   - Theme           → type: full theme object with all color tokens (主题完整对象类型)
 //   - THEMES          → const: record of all 5 theme definitions (5个主题的配置表)
 //   - ThemeProvider   → component: wrap app to enable theme (包裹 App 的 Provider)

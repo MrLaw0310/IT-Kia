@@ -253,12 +253,6 @@ function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
 export default function MapScreen() {
   const { theme: T } = useTheme();
 
-  // ✅ FIX 2: Destructure `spots` and `setSpots` directly from ParkingContext
-  //    instead of keeping a separate local useState copy.
-  //    This means Home and Map always share the same spot data — no drift.
-  //
-  //    修复2：直接从 ParkingContext 获取 spots 和 setSpots，
-  //    不再在本地另建一份 useState。Home 和 Map 从此共用同一份车位数据。
   const {
     vehicles,
     spots, setSpots,            // ✅ FIX 2: from context, not local state (从 context 获取，非本地 state)
@@ -317,10 +311,6 @@ export default function MapScreen() {
 
   // ── Sync GPS status indicator when session is restored from storage ───────
   // 当 activeSession 从 AsyncStorage 恢复时，同步更新 GPS 状态指示器
-  // ✅ FIX 2 NOTE: The old `setSpots(...)` call that was here is REMOVED because
-  //    context now owns the spots — they are already persisted & loaded correctly.
-  //    修复2说明：此处原有的 setSpots(...) 调用已删除，
-  //    因为 context 现在负责维护 spots，启动时已从 AsyncStorage 正确恢复。
   useEffect(() => {
     if (activeSession) {
       setGpsStatus("found");
@@ -356,10 +346,6 @@ export default function MapScreen() {
 
   // ── Auto checkout when leaving campus (离开校园时自动签出) ─────────────────
   function doAutoCheckout(spotId: string) {
-    // ✅ FIX 2: Removed local setSpots(...) call — ctxCheckOut() already updates
-    //    context spots, which this component reads directly.
-    //    修复2：删除了本地 setSpots(...) 调用 — ctxCheckOut() 已更新 context 中的
-    //    spots，本组件直接读取 context，无需再本地更新一次。
     ctxCheckOut();
     setGpsStatus("idle");
     setDistFromCampus(null);
@@ -436,8 +422,6 @@ export default function MapScreen() {
       { text: "Cancel", style: "cancel" },
       {
         text: "Check Out", style: "destructive", onPress: () => {
-          // ✅ FIX 2: Removed local setSpots(...) — ctxCheckOut() handles it.
-          //    修复2：删除本地 setSpots(...) — ctxCheckOut() 已处理。
           ctxCheckOut(); // Updates context spots + clears session + logs activity (更新 context spots、清除 session、记录活动)
           setGpsStatus("idle");
           setDistFromCampus(null);
