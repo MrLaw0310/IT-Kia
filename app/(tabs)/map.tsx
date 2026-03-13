@@ -3,41 +3,37 @@
 // Parking Map Screen
 //
 // 功能 / Features:
-//   1. 7×10 停车格子可视化（前两格为 OKU 专用）
-//      7×10 spot grid (first 2 spots are OKU reserved)
-//   2. GPS 定位 → 自动匹配最近车位
-//      GPS → auto-find nearest spot
-//   3. Check In / Check Out（写入 ParkingContext，同步 Home 页数据）
+//   1. 多行停车格子可视化（首行含 2 OKU 专用位）
+//      Multi-row parking spot grid (first row has 2 OKU reserved spots)
+//   2. Check In / Check Out（写入 ParkingContext，同步 Home 页数据）
 //      Check In/Out — writes to ParkingContext, syncs with Home screen
-//   4. GPS 持续监听 → 离开校园自动 Check Out
-//      Continuous GPS → auto checkout when leaving campus
-//   5. OKU 车位警告弹窗（非 OKU 用户触发）
+//   3. OKU 车位警告弹窗（非 OKU 用户触发）
 //      OKU warning modal for non-OKU users
-//   6. 筛选器：全部 / 空位 / 占用
+//   4. 筛选器：全部 / 空位 / 占用
 //      Filter: All / Free / Occupied
 //
-// 常见修改 / Common edits:
-//   校园坐标          → CAMPUS / LOT_ORIGIN
-//   自动签出距离      → AUTO_CHECKOUT_RADIUS_M
-//   格子数量          → generateSpots() 的 row / col 循环
+// 如何修改格子数量 / HOW TO CHANGE SPOT COUNTS:
+//   ➜ 修改 ParkingContext.tsx 的 generateSpots() 里的 addRow() 调用
+//     Edit addRow() calls in generateSpots() inside ParkingContext.tsx
+//   ➜ 修改后务必更新 ParkingContext.tsx 里的 LAYOUT_VERSION 字符串
+//     Then bump LAYOUT_VERSION in ParkingContext.tsx — this clears the cache
+//   ➜ 如果某行需要通道（左右分组），在 WIDE_AISLE_SECTIONS 集合里添加该行的 section ID
+//     If a row needs an aisle between left/right groups, add its section ID to
+//     WIDE_AISLE_SECTIONS below.
 //
 // IMPORTS (引入):
-//   expo-location              → GPS permission + watch position (GPS定位权限和监听)
-//   React hooks                → useEffect, useRef, useState
-//   React Native components    → Alert, Animated, Image, Modal, ScrollView, etc.
-//   useParkingContext          → spots, setSpots, checkIn, checkOut, vehicles, activeSession
-//                                (车位格子, 签入/签出方法, 车辆, 活动会话)
-//   SpotStatus, SpotType,
-//   ParkingSpot, generateSpots → types & initialiser shared with ParkingContext
-//                                (与 ParkingContext 共用的类型和初始化函数)
-//   useTheme                   → current theme colors (当前主题颜色)
+//   React hooks       → memo, useCallback, useEffect, useMemo, useRef, useState
+//   React Native      → Alert, Animated, Image, Modal, ScrollView, etc.
+//   useParkingContext → spots, checkIn, checkOut, vehicles, activeSession, stats
+//                       (车位数据, 签入/签出, 车辆, 会话, 统计)
+//   ParkingSpot       → spot type shared with ParkingContext (车位类型，与 ParkingContext 共用)
+//   useTheme          → current theme colors (当前主题颜色)
 //
 // EXPORTS (导出):
-//   default MapScreen          → the map screen component (地图页面，默认导出)
+//   default MapScreen → the map screen component (地图页面，默认导出)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import * as Location from "expo-location";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Animated, Image, Modal, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
@@ -49,42 +45,126 @@ import {
 } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
 
-// ─── Geographic constants (地理常量) ─────────────────────────────────────────
-const CAMPUS                = { lat: 1.42945, lng: 103.63628 }; // Campus center (校园中心坐标)
-const AUTO_CHECKOUT_RADIUS_M = 9999;                             // Auto-checkout distance in metres; 9999 = effectively disabled (自动签出距离，9999=实际关闭)
-const LOT_ORIGIN            = { lat: 1.42945, lng: 103.63628 }; // Top-left corner of parking lot (停车场左上角坐标)
-const SPOT_WIDTH_DEG        = 0.000023;  // Width of one spot in degrees longitude (每格经度宽度)
-const SPOT_HEIGHT_DEG       = 0.000045;  // Height of one spot in degrees latitude (每格纬度高度)
-const ROW_GAP_DEG           = 0.000010;  // Gap between rows (行间距)
+// ─── Section layout — mirrors generateSpots() in ParkingContext (区域布局定义) ──
+// Used by the renderer to group rows and add visual spacing between sections.
+// 供渲染器使用，将行分组并在区域间添加视觉间距。
+//
+// rowLabels: display labels shown at the left of each row (左侧显示的行标签)
+// paired:    true → the two rows are rendered back-to-back with a pairedBlock margin
+//            true → 两行背靠背渲染，外层用 pairedBlock 间距
+const SECTION_LAYOUT = [
+  { id: "S1", rowLabels: ["R1"],          paired: false },  // Row 1  — independent (独立行)
+  { id: "S2", rowLabels: ["R2",  "R3"],   paired: true  },  // Rows 2–3  — paired, NO aisle (背靠背，无通道)
+  { id: "S3", rowLabels: ["R4",  "R5"],   paired: true  },  // Rows 4–5  — paired
+  { id: "S4", rowLabels: ["R6",  "R7"],   paired: true  },  // Rows 6–7  — paired
+  { id: "S5", rowLabels: ["R8",  "R9"],   paired: true  },  // Rows 8–9  — paired
+  { id: "S6", rowLabels: ["R10", "R11"],  paired: true  },  // Rows 10–11 — paired, WITH aisle (背靠背，有通道)
+  { id: "S7", rowLabels: ["R12"],         paired: false },  // Row 12 — independent (独立行)
+  { id: "SR", rowLabels: ["Side"],        paired: false },  // Right-side column (右侧竖排)
+] as const;
 
-// ─── Utility functions (工具函数) ─────────────────────────────────────────────
+// ─── Row alignment / aisle constants (行对齐 / 通道常量) ───────────────────────
 
-/*
-   Returns the geographic centre-point of a spot by row/col.
-   根据行列计算车位地理坐标中心点。
-*/
-function spotCoords(row: number, col: number) {
-  return {
-    lat: LOT_ORIGIN.lat - row * (SPOT_HEIGHT_DEG + ROW_GAP_DEG) - SPOT_HEIGHT_DEG / 2,
-    lng: LOT_ORIGIN.lng + col * SPOT_WIDTH_DEG + SPOT_WIDTH_DEG / 2,
-  };
-}
+const WIDE_AISLE_SECTIONS = new Set(["S2", "S6"]);
+// Sections whose rows have 3 spots left group + wide aisle to align spot-4 with R1 spot-6
+// (左侧3格+大通道，使第4格对齐R1第6格)
 
-/*
-   Haversine distance in metres between two lat/lng points.
-   用于 GPS 定位最近车位的两点间距离计算（米）。
-*/
-function distanceM(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R  = 6371000;
-  const dL = ((lat2 - lat1) * Math.PI) / 180;
-  const dl = ((lng2 - lng1) * Math.PI) / 180;
-  const a  = Math.sin(dL / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dl / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+const WIDE_AISLE_WIDTH = 60;
+// Width of the aisle View for S2/S6 rows (px); margins add 6 → total 58px ✓
+// S2/S6通道格宽度（像素），加边距共58px
+
+const MAIN_SECTION_INDENT = 22;
+// Left padding for S3–S5 rows so spot-1 aligns with R3 spot-4 at x=124
+// S3–S5行左缩进量，使第1格对齐R3第4格（x=124px）
+
+// SR marginTop: vertical offset so the side column starts beside R4.
+// SR竖排的顶部间距，使其从主格的 R4 行高度开始。
+// S1: 1 row (30px spot) + rowWrap marginBottom(18) + sectionBlock marginBottom(18) ≈ 66px
+// S2: pairedTopRow(30+14=44) + pairedBottomRow(30+18=48) + pairedBlock marginBottom(63) ≈ 155px  (but SR starts at R4, not after S2)
+// Keep at 120 — visually calibrated to align SR beside S3 row 1 (R4).
+// 保持 120 — 经视觉校准，使 SR 竖排与 S3 第一行（R4）左侧对齐。
+const SR_MARGIN_TOP = 120;
+
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ⚠️ OKUWarningModal
+// 🟩 SpotCell — single parking spot cell (单个停车格子)
+// Wrapped in React.memo so it only re-renders when its own data changes.
+// 用 React.memo 包装，只在自身数据变化时重新渲染，避免 241 个格子全部重渲染。
+// ═════════════════════════════════════════════════════════════════════════════
+const SpotCell = memo(function SpotCell({ spot, isMySpot, color, dim, pulseAnim, onPress }: {
+  spot:      ParkingSpot;
+  isMySpot:  boolean;
+  color:     string;
+  dim:       boolean;
+  pulseAnim: Animated.Value;
+  onPress:   (spot: ParkingSpot) => void;
+}) {
+  const isOKU = spot.type === "oku";
+  return (
+    <TouchableOpacity onPress={() => onPress(spot)} activeOpacity={0.7} style={styles.spotWrapper}>
+      {isMySpot ? (
+        // My spot — pulsing yellow (我的车位，脉冲黄色)
+        <Animated.View style={[styles.spot, {
+          backgroundColor: "#FFD70035",
+          borderColor:     "#FFD700",
+          borderWidth:     2,
+          transform:       [{ scale: pulseAnim }],
+        }]}>
+          <Text style={{ fontSize: 9 }}>📍</Text>
+        </Animated.View>
+      ) : (
+        // Normal / OKU spot (普通/OKU格子)
+        <View style={[styles.spot, isOKU && styles.okuSpot, {
+          backgroundColor: dim ? color + "0D" : color + "28",
+          borderColor:     dim ? color + "25" : color + "99",
+          opacity:         dim ? 0.3 : 1,
+        }]}>
+          <Text style={[styles.spotText, { color: dim ? color + "60" : color }]}>
+            {isOKU ? "♿" : spot.col + 1}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+// SR variant — landscape orientation, number rotated –90° (SR格子，横向，编号旋转–90°)
+const SRSpotCell = memo(function SRSpotCell({ spot, index, isMySpot, color, dim, pulseAnim, onPress }: {
+  spot:      ParkingSpot;
+  index:     number;
+  isMySpot:  boolean;
+  color:     string;
+  dim:       boolean;
+  pulseAnim: Animated.Value;
+  onPress:   (spot: ParkingSpot) => void;
+}) {
+  return (
+    <TouchableOpacity onPress={() => onPress(spot)} activeOpacity={0.7} style={styles.srSpotWrapper}>
+      {isMySpot ? (
+        <Animated.View style={[styles.srSpot, {
+          backgroundColor: "#FFD70035",
+          borderColor:     "#FFD700",
+          borderWidth:     2,
+          transform:       [{ scale: pulseAnim }],
+        }]}>
+          <Text style={styles.srSpotText}>📍</Text>
+        </Animated.View>
+      ) : (
+        <View style={[styles.srSpot, {
+          backgroundColor: dim ? color + "0D" : color + "28",
+          borderColor:     dim ? color + "25" : color + "99",
+          opacity:         dim ? 0.3 : 1,
+        }]}>
+          <Text style={[styles.srSpotText, { color: dim ? color + "60" : color }]}>
+            {index + 1}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+
 // Shown when a non-OKU user tries to park in an OKU spot.
 // 非 OKU 用户尝试停 OKU 专用位时弹出警告。
 // Animation: shake left-right on appear (弹出时左右抖动动画)
@@ -251,42 +331,42 @@ function SpotModal({ spot, mySpotId, onClose, onCheckIn, onCheckOut, T }: {
 // 🗺️ MapScreen — Main screen component (主页面组件)
 // ═════════════════════════════════════════════════════════════════════════════
 export default function MapScreen() {
-  const { theme: T } = useTheme();
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1️⃣  CONTEXT & THEME (Context 数据 + 主题)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const { theme: T } = useTheme();
   const {
     vehicles,
-    spots, setSpots,            // ✅ FIX 2: from context, not local state (从 context 获取，非本地 state)
-    freeCount, occCount, okuFree, // ✅ FIX 2: pre-computed in context, no need to recompute here (context已计算好，无需在此重算)
+    spots,
+    freeCount, occCount, okuFree, okuTotal,
     activeSession,
     checkIn:  ctxCheckIn,
     checkOut: ctxCheckOut,
   } = useParkingContext();
 
-  // Current user's plate + OKU status (read from first registered vehicle)
-  // 当前用户车牌和 OKU 身份（从第一辆车读取）
-  const currentPlate = vehicles[0]?.plate ?? "";
-  const isOKUUser    = vehicles[0]?.isOKU ?? false;
+  // Derived from context — not stored in state (从 context 派生，不需要存入 state)
+  const currentPlate = vehicles[0]?.plate ?? "";       // First vehicle's plate (第一辆车的车牌)
+  const isOKUUser    = vehicles[0]?.isOKU ?? false;    // OKU status of first vehicle (第一辆车的OKU身份)
+  const mySpotId     = activeSession?.spotId ?? null;  // Active spot ID, always in sync with context (当前停车位ID，始终与 context 同步)
 
-  // mySpotId comes from context's activeSession — always in sync
-  // mySpotId 直接读 context 的 activeSession，永不失同步
-  const mySpotId = activeSession?.spotId ?? null;
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2️⃣  ALL STATE & REFS (所有状态和 Ref，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Local UI state (本地 UI 状态，不需要持久化) ─────────────────────────────
-  const [selected,       setSelected]       = useState<ParkingSpot | null>(null);              // Currently tapped spot → opens SpotModal (当前点击的车位)
-  const [filter,         setFilter]         = useState<"all" | "free" | "occupied">("all");    // Grid filter (格子筛选器)
-  const [gpsStatus,      setGpsStatus]      = useState<"idle" | "scanning" | "found" | "outside">("idle");
-  const [okuWarning,     setOkuWarning]     = useState(false);                                 // OKU warning modal visibility (OKU警告弹窗是否可见)
-  const [pendingSpot,    setPendingSpot]    = useState<ParkingSpot | null>(null);              // OKU spot awaiting user override (等待用户确认的OKU车位)
-  const [distFromCampus, setDistFromCampus] = useState<number | null>(null);                  // Distance from campus in metres (距校园距离，米)
+  const [selected,   setSelected]   = useState<ParkingSpot | null>(null);           // Tapped spot → opens SpotModal (点击的车位，触发弹窗)
+  const [filter,     setFilter]     = useState<"all" | "free" | "occupied">("all"); // Grid display filter (格子筛选器)
+  const [okuWarning, setOkuWarning] = useState(false);                              // OKU warning modal visibility (OKU警告弹窗是否可见)
+  const [pendingSpot,setPendingSpot]= useState<ParkingSpot | null>(null);           // OKU spot waiting for user override (等待用户确认的OKU车位)
 
-  // ── Animation & refs (动画和 Ref) ─────────────────────────────────────────
-  const pulseAnim   = useRef(new Animated.Value(1)).current;              // My-spot pulse animation (我的车位脉冲动画)
-  const locationSub = useRef<Location.LocationSubscription | null>(null); // GPS subscription handle (GPS 订阅句柄)
-  const mySpotIdRef = useRef<string | null>(null);                        // Stale-closure-safe ref for GPS callback (GPS回调中读取 mySpotId 用，避免陈旧闭包)
-  useEffect(() => { mySpotIdRef.current = mySpotId; }, [mySpotId]);
+  const pulseAnim = useRef(new Animated.Value(1)).current; // My-spot pulse scale animation (我的车位脉冲缩放动画)
 
-  // ── Pulse animation: start on check-in, stop on check-out ────────────────
-  // 脉冲动画：签入时启动，签出时停止
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3️⃣  ALL EFFECTS (所有副作用，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Pulse animation: loop while checked in, stop when checked out (签入时循环脉冲，签出时停止)
   useEffect(() => {
     if (mySpotId) {
       const loop = Animated.loop(Animated.sequence([
@@ -301,159 +381,88 @@ export default function MapScreen() {
     }
   }, [mySpotId]);
 
-  // ── GPS watch: start when checked in, stop when checked out ──────────────
-  // GPS 监听：签入时开始，签出时停止
-  useEffect(() => {
-    if (mySpotId) startWatchingLocation();
-    else stopWatchingLocation();
-    return () => stopWatchingLocation(); // Cleanup on screen unmount (页面卸载时清理)
-  }, [mySpotId]);
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4️⃣  ALL HANDLERS & HELPERS (所有处理函数和辅助函数，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Sync GPS status indicator when session is restored from storage ───────
-  // 当 activeSession 从 AsyncStorage 恢复时，同步更新 GPS 状态指示器
-  useEffect(() => {
-    if (activeSession) {
-      setGpsStatus("found");
-    }
-  }, [activeSession]);
+  // ── Check-In / Check-Out Handlers (签入 / 签出处理函数) ───────────────────
 
-  // ── GPS: start continuous location watching (开始持续 GPS 监听) ────────────
-  async function startWatchingLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
-    stopWatchingLocation(); // Clear any old subscription first (先清理旧订阅)
-    locationSub.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, distanceInterval: 50, timeInterval: 30000 },
-      (loc) => {
-        const { latitude, longitude } = loc.coords;
-        const dist = distanceM(latitude, longitude, CAMPUS.lat, CAMPUS.lng);
-        setDistFromCampus(Math.round(dist));
-        // Auto checkout if user has left campus (超出自动签出半径则自动签出)
-        if (dist > AUTO_CHECKOUT_RADIUS_M && mySpotIdRef.current) {
-          doAutoCheckout(mySpotIdRef.current);
-        }
-      }
-    );
-  }
-
-  // ── GPS: stop watching (停止 GPS 监听) ────────────────────────────────────
-  function stopWatchingLocation() {
-    if (locationSub.current) {
-      locationSub.current.remove();
-      locationSub.current = null;
-    }
-  }
-
-  // ── Auto checkout when leaving campus (离开校园时自动签出) ─────────────────
-  function doAutoCheckout(spotId: string) {
-    ctxCheckOut();
-    setGpsStatus("idle");
-    setDistFromCampus(null);
-    stopWatchingLocation();
-    Alert.alert(
-      "🚗 Auto Checked Out",
-      `You have left the MDIS campus.\nSpot ${spotId} has been automatically freed.`,
-      [{ text: "OK" }]
-    );
-  }
-
-  // ── GPS: find nearest spot to user's current location ─────────────────────
-  // GPS 定位：找到用户当前位置最近的车位
-  async function handleFindMySpot() {
-    setGpsStatus("scanning");
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Location Required", "Please allow location access.");
-      setGpsStatus("idle");
-      return;
-    }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    const { latitude, longitude } = loc.coords;
-
-    // Find spot with minimum distance (找距离最近的车位)
-    let closest: ParkingSpot | null = null, minDist = Infinity;
-    for (const spot of spots) {
-      const c = spotCoords(spot.row, spot.col);
-      const dist = distanceM(latitude, longitude, c.lat, c.lng);
-      if (dist < minDist) { minDist = dist; closest = spot; }
-    }
-
-    if (closest && minDist < 4) {
-      // Within 4 m → considered at that spot (在4米内，认为在该车位)
-      setGpsStatus("found");
-      setSelected(closest);
-    } else {
-      setGpsStatus("outside");
-      Alert.alert("📍 Not in Parking Lot", `Nearest spot: ${Math.round(minDist)}m away`);
-      setTimeout(() => setGpsStatus("idle"), 3000);
-    }
-  }
-
-  // ── Check-in flow (签入流程) ───────────────────────────────────────────────
+  // Called when user taps a free spot in the grid (用户点击空位时触发)
   function handleCheckIn(spot: ParkingSpot) {
     setSelected(null);
     if (mySpotId) {
       Alert.alert("Already Checked In", `You are at Spot ${mySpotId}. Check out first.`);
       return;
     }
-    // Non-OKU user taps OKU spot → show warning (非OKU用户点OKU位 → 弹警告)
     if (spot.type === "oku" && !isOKUUser) {
       setPendingSpot(spot);
-      setOkuWarning(true);
+      setOkuWarning(true); // Show OKU warning for non-OKU users (非OKU用户显示警告)
       return;
     }
     confirmCheckIn(spot);
   }
 
-  // Confirm and execute check-in (确认并执行签入)
+  // Executes the actual check-in after all guards pass (通过所有检查后执行签入)
   function confirmCheckIn(spot: ParkingSpot) {
-    // ✅ FIX 2: Removed local setSpots(...) — ctxCheckIn() handles spot update in context.
-    //    修复2：删除本地 setSpots(...) — ctxCheckIn() 已在 context 中更新车位状态。
     const timeNow = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    ctxCheckIn(spot.id, currentPlate); // Updates context spots + session + activity (更新 context 的 spots、session 和 activity)
-    setGpsStatus("found");
-    Alert.alert("✅ Checked In!", `Parked at Spot ${spot.id} · ${timeNow}\n\n📍 GPS monitoring started.`);
+    ctxCheckIn(spot.id, currentPlate);
+    Alert.alert("✅ Checked In!", `Parked at Spot ${spot.id} · ${timeNow}`);
   }
 
-  // ── Check-out flow with confirmation alert (签出流程，含二次确认) ─────────
+  // Called when user taps their own spot to check out (用户点击自己的车位时触发签出)
   function handleCheckOut(spot: ParkingSpot) {
-    setSelected(null); // Close modal before Alert to avoid overlap (先关弹窗，避免与 Alert 叠加)
+    setSelected(null);
     Alert.alert("🚗 Check Out", `Leave Spot ${spot.id}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Check Out", style: "destructive", onPress: () => {
-          ctxCheckOut(); // Updates context spots + clears session + logs activity (更新 context spots、清除 session、记录活动)
-          setGpsStatus("idle");
-          setDistFromCampus(null);
+          ctxCheckOut();
           Alert.alert("👋 Checked Out!", `Spot ${spot.id} is now free.\nDrive safely!`);
         },
       },
     ]);
   }
 
-  // ── Helper: get spot object by row + col (通过行列获取车位对象) ─────────────
-  function getSpot(row: number, col: number) {
-    return spots.find(s => s.row === row && s.col === col) ?? null;
-  }
+  // ── Grid Helpers (格子渲染辅助函数) ──────────────────────────────────────
 
-  // ── Helper: should a spot be dimmed by the filter? (格子是否因筛选器变暗) ──
-  function isDimmed(spot: ParkingSpot) {
-    if (spot.id === mySpotId) return false;   // My spot never dims (我的车位永远不变暗)
+  // Pre-compute all section rows once per spots change — avoids re-filtering 241 spots on every render
+  // 每次 spots 变化时预计算所有区域行，避免每次 render 重复 filter/sort 241 个格子
+  const sectionRowsMap = useMemo(() => {
+    const map: Record<string, ParkingSpot[][]> = {};
+    for (const sec of SECTION_LAYOUT) {
+      const secSpots = spots.filter(s => s.section === sec.id);
+      const rowNums  = [...new Set(secSpots.map(s => s.row))].sort((a, b) => a - b);
+      map[sec.id]    = rowNums.map(r => secSpots.filter(s => s.row === r).sort((a, b) => a.col - b.col));
+    }
+    return map;
+  }, [spots]);
+
+  // Stable getter used by JSX (供 JSX 使用的稳定取值函数)
+  const getSectionRows = useCallback(
+    (sectionId: string) => sectionRowsMap[sectionId] ?? [],
+    [sectionRowsMap]
+  );
+
+  // Returns true if spot should be greyed out by the current filter (当前筛选器是否使该车位变暗)
+  const isDimmed = useCallback((spot: ParkingSpot) => {
+    if (spot.id === mySpotId)  return false;
     if (filter === "free")     return spot.status !== "free";
     if (filter === "occupied") return spot.status !== "occupied";
     return false;
-  }
+  }, [filter, mySpotId]);
 
-  // ── Helper: colour for a spot cell (获取格子颜色) ─────────────────────────
-  function spotColor(spot: ParkingSpot, isMySpot = false) {
-    if (isMySpot)            return T.yellow;                                   // My spot → yellow (我的车位→黄)
-    if (spot.type === "oku") return spot.status === "free" ? T.blue : T.muted;  // OKU → blue/grey (OKU→蓝/灰)
-    return spot.status === "free" ? T.green : T.red;                            // Normal → green/red (普通→绿/红)
-  }
+  // Returns the display colour for a spot cell (返回车位格子的显示颜色)
+  const spotColor = useCallback((spot: ParkingSpot, isMySpot = false): string => {
+    if (isMySpot)            return T.yellow;
+    if (spot.type === "oku") return spot.status === "free" ? T.blue : T.muted;
+    return spot.status === "free" ? T.green : T.red;
+  }, [T]);
+
+  // Stable onPress passed to SpotCell — avoids re-renders when parent re-renders
+  // 稳定的 onPress 传入 SpotCell，防止父组件 render 时触发子组件重渲染
+  const handleSpotPress = useCallback((spot: ParkingSpot) => setSelected(spot), []);
 
   // ── Render ────────────────────────────────────────────────────────────────
-  // Background transparent so _layout.tsx LinearGradient shows through.
-  // 背景 transparent，让 _layout.tsx 的渐变透出来。
   return (
     <View style={[styles.screen, { backgroundColor: "transparent" }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -467,81 +476,13 @@ export default function MapScreen() {
           <Image source={require("../../assets/images/itkia.png")} style={{ width: 80, height: 40, resizeMode: "contain" }} />
         </View>
 
-        {/* ── GPS monitoring banner — shown while checked in (GPS监听横幅，签入时显示) ── */}
-        {mySpotId && (
-          <View style={[styles.autoBanner, { backgroundColor: T.accent + "12", borderColor: T.accent + "44" }]}>
-            <Text style={styles.autoBannerIcon}>📡</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.autoBannerTitle, { color: T.accent }]}>GPS Monitoring Active</Text>
-              <Text style={[styles.autoBannerSub, { color: T.muted }]}>
-                {distFromCampus !== null
-                  ? `${distFromCampus}m from campus · Auto checkout at ${AUTO_CHECKOUT_RADIUS_M}m`
-                  : "Tracking your distance..."}
-              </Text>
-            </View>
-            {/* Distance progress bar (距离进度条) */}
-            {distFromCampus !== null && (
-              <View style={[styles.distBarWrap, { backgroundColor: T.border }]}>
-                <View style={[styles.distBarFill, {
-                  width: `${Math.min((distFromCampus / AUTO_CHECKOUT_RADIUS_M) * 100, 100)}%` as any,
-                  backgroundColor: distFromCampus > 400 ? T.red : distFromCampus > 200 ? T.orange : T.green,
-                }]} />
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* ── GPS find-my-spot button (GPS 定位按钮) ── */}
-        <TouchableOpacity
-          style={[styles.gpsBtn,
-            gpsStatus === "scanning" && { borderColor: T.orange + "55", backgroundColor: T.orange + "12" },
-            gpsStatus === "found"    && { borderColor: T.green  + "55", backgroundColor: T.green  + "12" },
-            gpsStatus === "outside"  && { borderColor: T.red    + "55", backgroundColor: T.red    + "12" },
-            gpsStatus === "idle"     && { borderColor: T.accent + "55", backgroundColor: T.accent + "12" },
-          ]}
-          onPress={handleFindMySpot}
-          activeOpacity={0.8}
-          disabled={gpsStatus === "scanning"}
-        >
-          <Text style={styles.gpsBtnIcon}>
-            {gpsStatus === "scanning" ? "🔄" : gpsStatus === "found" ? "📍" : gpsStatus === "outside" ? "❌" : "📍"}
-          </Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.gpsBtnTitle, {
-              color: gpsStatus === "found"    ? T.green
-                   : gpsStatus === "outside"  ? T.red
-                   : gpsStatus === "scanning" ? T.orange
-                   : T.accent,
-            }]}>
-              {gpsStatus === "scanning" ? "Scanning GPS..."
-               : gpsStatus === "found"   ? `Parked at ${mySpotId}`
-               : gpsStatus === "outside" ? "Not in parking lot"
-               : "Find My Parking Spot"}
-            </Text>
-            <Text style={[styles.gpsBtnSub, { color: T.muted }]}>
-              {gpsStatus === "found"
-                ? "Tap your yellow spot 📍 to check out"
-                : "Tap to detect which spot you're in"}
-            </Text>
-          </View>
-          {/* Quick checkout button shown while parked (停车时显示的快速签出按钮) */}
-          {mySpotId && (
-            <TouchableOpacity
-              onPress={() => { ctxCheckOut(); setGpsStatus("idle"); setDistFromCampus(null); }}
-              style={styles.gpsClearBtn}
-            >
-              <Text style={[styles.gpsClearText, { color: T.muted }]}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </TouchableOpacity>
-
         {/* ── Stats row (统计数据行) ── */}
         <View style={styles.statsRow}>
           {[
-            { label: "Free",     val: freeCount,      color: T.green  },
-            { label: "Occupied", val: occCount,        color: T.red    },
-            { label: "OKU Free", val: `${okuFree}/2`,  color: T.blue   },
-            { label: "Total",    val: 70,              color: T.accent },
+            { label: "Free",     val: freeCount,                  color: T.green  },
+            { label: "Occupied", val: occCount,                    color: T.red    },
+            { label: "OKU Free", val: `${okuFree}/${okuTotal}`,   color: T.blue   },
+            { label: "Total",    val: spots.length,               color: T.accent },
           ].map(s => (
             <View key={s.label} style={[styles.statChip, { backgroundColor: T.card + "CC", borderColor: s.color + "44" }]}>
               <Text style={[styles.statNum,   { color: s.color }]}>{s.val}</Text>
@@ -574,77 +515,107 @@ export default function MapScreen() {
         {/* ── Parking grid card (停车格子卡片) ── */}
         <View style={[styles.gridCard, { backgroundColor: T.card + "E8", borderColor: T.border }]}>
 
-          {/* Top row: title + EXIT badge (顶部：标题 + EXIT 标签) */}
+          {/* Top row: title (顶部：标题) */}
           <View style={styles.topRow}>
             <Text style={[styles.gridTitle, { color: T.muted }]}>🅿️ MDIS Student Parking</Text>
-            <View style={[styles.exitBadge, { backgroundColor: T.green + "20", borderColor: T.green + "55" }]}>
-              <Text style={[styles.exitText, { color: T.green }]}>EXIT ↗</Text>
-            </View>
           </View>
 
-          {/* 7 rows × 10 cols grid (7行×10列格子) */}
-          {Array.from({ length: 7 }, (_, row) => (
-            <View key={row} style={styles.rowWrap}>
-              {/* Row label R1–R7 (行标签 R1~R7) */}
-              <Text style={[styles.rowLabel, { color: T.muted }]}>R{row + 1}</Text>
-              <View style={styles.rowSpots}>
-                {Array.from({ length: 10 }, (_, col) => {
-                  const spot = getSpot(row, col);
-                  if (!spot) return null;
+          {/* Horizontal scroll — main grid left, SR vertical column right
+              横向可滑动：左侧主格，右侧 SR 竖排 */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingRight: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", flexShrink: 0 }}>
+
+              {/* ── Main grid S1–S7 ───────────────────────────────────────── */}
+              <View style={{alignSelf:"flex-start"}}>
+                {SECTION_LAYOUT.filter(sec => sec.id !== "SR").map((sec) => {
+                  const sectionRows = getSectionRows(sec.id);
+                  if (sectionRows.length === 0) return null;
+
+                  // S3/S4/S5 indent whole row (单组行整体缩进)
+                  const rowIndent = (sec.id === "S3" || sec.id === "S4" || sec.id === "S5")
+                    ? MAIN_SECTION_INDENT : 0;
+
+                  return (
+                    <View key={sec.id} style={[styles.sectionBlock, sec.paired && styles.pairedBlock]}>
+                      {sectionRows.map((rowSpots, ri) => (
+                        <View key={ri} style={[
+                          styles.rowWrap,
+                          sec.paired && ri === 0 && styles.pairedTopRow,
+                          sec.paired && ri === 1 && styles.pairedBottomRow,
+                        ]}>
+                          {/* Row label e.g. R1, R2 (行标签) */}
+                          <Text style={[styles.rowLabel, { color: T.muted }]}>
+                            {sec.rowLabels[ri] ?? sec.rowLabels[0]}
+                          </Text>
+
+                          {/* Spots row — indent S3-S5; use wide aisle for S2/S6
+                              格子排列：S3-S5整行缩进，S2/S6使用大通道对齐 */}
+                          <View style={[styles.rowSpots, rowIndent > 0 && { paddingLeft: rowIndent }]}>
+                            {rowSpots.map((spot, si) => {
+                              const isMySpot = spot.id === mySpotId;
+                              const color    = spotColor(spot, isMySpot);
+                              const dim      = isDimmed(spot);
+                              const showGap  = si > 0 && spot.group !== rowSpots[si - 1].group;
+
+                              return (
+                                <View key={spot.id} style={{ flexDirection: "row", alignItems: "center" }}>
+                                  {/* Wide aisle for S2/S6, normal aisle elsewhere (S2/S6用大通道，其余用普通通道) */}
+                                  {showGap && (
+                                    <View style={[
+                                      styles.aisle,
+                                      WIDE_AISLE_SECTIONS.has(sec.id) && { width: WIDE_AISLE_WIDTH },
+                                      { backgroundColor: T.border + "55" },
+                                    ]} />
+                                  )}
+                                  <SpotCell
+                                    spot={spot}
+                                    isMySpot={isMySpot}
+                                    color={color}
+                                    dim={dim}
+                                    pulseAnim={pulseAnim}
+                                    onPress={handleSpotPress}
+                                  />
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
+
+              </View>
+
+              {/* ── SR vertical column (SR右侧竖排) ────────────────────────────
+                  Starts beside R4 (marginTop = S1+S2 height = 116px).
+                  从R4旁边开始（marginTop = S1+S2高度 = 116px）。
+                  Spots are landscape (30w×22h) with numbers rotated –90° to
+                  represent perpendicular parking spaces.
+                  格子横向（宽>高），编号旋转–90°，模拟垂直停车位。 */}
+              <View style={[styles.srColumn, { marginTop: SR_MARGIN_TOP, borderLeftColor: T.border + "88" }]}>
+                <Text style={[styles.srColLabel, { color: T.muted }]}>SR</Text>
+                {(getSectionRows("SR")[0] ?? []).map((spot, si) => {
                   const isMySpot = spot.id === mySpotId;
                   const color    = spotColor(spot, isMySpot);
                   const dim      = isDimmed(spot);
-                  const isOKU    = spot.type === "oku";
-
-                  {/* My spot: pulse animation spotWrapper holds fixed layout size; scale transform applied to inner View only, preventing the pulse from pushing other spots around. 我的车位：脉冲动画。spotWrapper 固定占位，scale 动画在内层，防止撑大布局。 */}
-                  if (isMySpot) return (
-                    <TouchableOpacity
-                      key={spot.id}
-                      onPress={() => setSelected(spot)}
-                      activeOpacity={0.7}
-                      style={styles.spotWrapper}
-                    >
-                      <Animated.View style={[styles.spot, {
-                        backgroundColor: T.yellow + "35",
-                        borderColor:     T.yellow,
-                        borderWidth:     2,
-                        transform:       [{ scale: pulseAnim }],
-                      }]}>
-                        <Text style={{ fontSize: 9 }}>📍</Text>
-                      </Animated.View>
-                    </TouchableOpacity>
-                  );
-
-                  {/* Normal / OKU spot (普通 / OKU 格子) */}
                   return (
-                    <TouchableOpacity
+                    <SRSpotCell
                       key={spot.id}
-                      onPress={() => setSelected(spot)}
-                      activeOpacity={0.7}
-                      style={styles.spotWrapper}
-                    >
-                      <View style={[styles.spot, isOKU && styles.okuSpot, {
-                        backgroundColor: dim ? color + "0D" : color + "28",
-                        borderColor:     dim ? color + "25" : color + "99",
-                        opacity:         dim ? 0.3 : 1,
-                      }]}>
-                        <Text style={[styles.spotText, { color: dim ? color + "60" : color }]}>
-                          {isOKU ? "♿" : col + 1}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
+                      spot={spot}
+                      index={si}
+                      isMySpot={isMySpot}
+                      color={color}
+                      dim={dim}
+                      pulseAnim={pulseAnim}
+                      onPress={handleSpotPress}
+                    />
                   );
                 })}
               </View>
-            </View>
-          ))}
 
-          {/* Bottom row: ENTRANCE badge (底部：ENTRANCE 标签) */}
-          <View style={styles.bottomRow}>
-            <View style={[styles.entranceBadge, { backgroundColor: T.red + "20", borderColor: T.red + "55" }]}>
-              <Text style={[styles.entranceText, { color: T.red }]}>ENTRANCE ↘</Text>
             </View>
-          </View>
+          </ScrollView>
         </View>
 
         {/* ── Legend (图例) ── */}
@@ -694,36 +665,8 @@ const styles = StyleSheet.create({
   // 标题 + 校徽横排 / Title row with school logo
   pageTitle: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },                              
   // 页面主标题 "Parking Map" / Main page title
-  subtitle:  { fontSize: 13 },                                                                       
+  subtitle:  { fontSize: 13 },
   // 副标题 "MDIS Educity · Student Lot" / Subtitle text
-
-  // ── GPS 监听横幅 / GPS monitoring banner ─────────────────────────────────
-  autoBanner:      { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }, 
-  // 签入后显示的 GPS 监听状态横幅 / GPS monitoring status banner shown while checked in
-  autoBannerIcon:  { fontSize: 22 },                                                                 
-  // 横幅左侧 📡 图标 / Satellite icon on banner left
-  autoBannerTitle: { fontSize: 13, fontWeight: "800" },                                             
-  // 横幅标题 "GPS Monitoring Active" / Banner title text
-  autoBannerSub:   { fontSize: 11, marginTop: 2 },                                                  
-  // 横幅副标题（距离 + 自动签出阈值）/ Banner subtitle (distance + auto-checkout threshold)
-  distBarWrap:     { width: 50, height: 5, borderRadius: 999, overflow: "hidden" },                 
-  // 距离进度条外层容器（圆角裁切）/ Distance progress bar outer wrapper (clips fill)
-  distBarFill:     { height: "100%", borderRadius: 999 },                                           
-  // 距离进度条填充（颜色随距离变化）/ Progress bar fill (colour changes with distance)
-
-  // ── GPS 定位按钮 / GPS find-my-spot button ─────────────────────────────────
-  gpsBtn:      { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }, 
-  // GPS 定位 / 停车状态按钮整体 / GPS locate / parking status button
-  gpsBtnIcon:  { fontSize: 26 },                                                                     
-  // 按钮左侧图标（📍🔄❌）/ Button left icon
-  gpsBtnTitle: { fontSize: 14, fontWeight: "800" },                                                 
-  // 按钮主标题（随状态变色）/ Button title (colour changes with GPS status)
-  gpsBtnSub:   { fontSize: 11, marginTop: 2 },                                                      
-  // 按钮副标题提示文字 / Button subtitle hint text
-  gpsClearBtn: { padding: 6 },                                                                       
-  // 停车时右侧 ✕ 快速签出按钮 / Quick checkout ✕ button when parked
-  gpsClearText:{ fontSize: 16 },                                                                     
-  // ✕ 符号文字 / ✕ icon text
 
   // ── 统计数据行 / Stats chips row ───────────────────────────────────────────
   statsRow:  { flexDirection: "row", gap: 8, marginBottom: 14 },                                    
@@ -744,40 +687,59 @@ const styles = StyleSheet.create({
   // 筛选按钮文字 / Filter button text
 
   // ── 停车格子卡片 / Parking grid card ──────────────────────────────────────
-  gridCard:  { borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 16 },                  
-  // 整个格子地图卡片容器 / Outer card wrapping the entire spot grid
-  topRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }, 
-  // 卡片顶部：标题 + EXIT 徽章 / Card top: title + EXIT badge
-  gridTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },                              
-  // 格子卡片标题（"🅿️ MDIS Student Parking"）/ Grid card title text
-  exitBadge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },       
-  // 右上角 EXIT 方向标签 / Top-right EXIT direction badge
-  exitText:  { fontWeight: "800", fontSize: 12 },                                                   
-  // "EXIT ↗" 文字 / EXIT badge text
-  rowWrap:   { flexDirection: "row", alignItems: "center", marginBottom: 8 },                      
-  // 单行车位（行标签 R1–R7 + 格子）/ Single row wrapper (label + spots)
-  rowLabel:  { fontSize: 10, width: 22, fontWeight: "600" },                                        
-  // 行标签 R1、R2… 固定宽度 / Fixed-width row label (R1, R2…)
-  rowSpots:  { flexDirection: "row", gap: 5, flex: 1 },                                            
-  // 一行内所有格子的横排 / Horizontal row of all spots in a row
+  gridCard:  { borderWidth: 1, borderRadius: 20, padding: 16, marginBottom: 16 },
+  topRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  gridTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+
+  // ── 区域分组 / Section grouping ────────────────────────────────────────────
+  sectionBlock:    { marginBottom: 18, alignSelf: "flex-start" },                                       
+  // 每个区域（S1~S7, SR）的外层容器 / Outer wrapper for each section
+  pairedBlock:     { marginBottom: 63},                                        
+  // 背靠背双排区域：上下两行间距更紧 / Tighter margin for paired back-to-back sections
+  pairedTopRow:    { marginBottom: 14 },                                        
+  // 双排上排：底部间距极小（模拟背靠背）/ Top row of paired section: minimal bottom gap
+  pairedBottomRow: { marginBottom: 0 },                                        
+  // 双排下排 / Bottom row of paired section
+  srColumn: {
+    flexDirection: "column",
+    alignItems: "center",
+    marginLeft: -38,
+    paddingTop: 2,
+  },
+  // SR vertical column container — sits to the right of main grid, starts at R4 level
+  // SR 竖排容器，位于主格右侧，从 R4 高度开始
+
+  srColLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 0.5, marginBottom: 4 },
+  // "SR" label at top of the side column (竖排顶部标签)
+
+  srSpotWrapper: { width: 30, height: 22, justifyContent: "center", alignItems: "center", marginBottom: 2 },
+  // Landscape spot cell (30×22) — rotated proportions to simulate perpendicular parking
+  // 横向格子（宽×高），模拟垂直停车位的旋转视觉效果
+
+  srSpot: { width: "100%", height: "100%", borderRadius: 3, borderWidth: 1, justifyContent: "center", alignItems: "center" },
+  // SR spot body, same colour logic as normal spots (SR格子主体，颜色逻辑同普通格子)
+
+  srSpotText: { fontSize: 6, fontWeight: "800", transform: [{ rotate: "-90deg" }] },
+  // Spot number rotated –90° to read along the column (格子编号旋转–90°，沿竖排阅读)
+  aisle:           { width: 82, height: "100%" as any, marginHorizontal: 3, borderRadius: 2, opacity: 0 }, 
+  // 行内通道间隙（左右子组之间）/ Aisle gap between left and right spot clusters in a row
+
+  rowWrap:   { flexDirection: "row", alignItems: "center", marginBottom: 18, alignSelf: "flex-start" },
+  // 每行：行标签 + 格子横排，不限宽度随内容伸展 / Row: label + spots inline, unconstrained width
+  rowLabel:  { fontSize: 10, width: 28, fontWeight: "600" },
+  // 行标签（R1 / R2 …）固定28px宽 / Row label fixed 28px width
+  rowSpots:  { flexDirection: "row", flexWrap: "nowrap" },
+  // 格子横排，不换行（横向 ScrollView 保证显示完整）/ Spots in a single line, no wrap (horizontal scroll handles overflow)
 
   // ── 停车格子 / Spot cells ──────────────────────────────────────────────────
-  spotWrapper: { flex: 1, aspectRatio: 0.7, justifyContent: "center", alignItems: "center" },      
-  // 格子占位容器（固定比例，防止脉冲动画撑大布局）/ Fixed-ratio cell wrapper (prevents pulse from shifting layout)
-  spot:        { width: "100%", height: "100%", borderRadius: 6, borderWidth: 1, justifyContent: "center", alignItems: "center" }, 
+  spotWrapper: { width: 22, height: 30, justifyContent: "center", alignItems: "center" },
+  // 格子固定尺寸容器（22×30px，防止脉冲动画撑大布局）/ Fixed-size cell wrapper (prevents pulse from shifting layout)
+  spot:        { width: "100%", height: "100%", borderRadius: 4, borderWidth: 1, justifyContent: "center", alignItems: "center" },
   // 格子本体（颜色和边框通过 inline style 动态传入）/ Spot cell body (color/border via inline style)
-  okuSpot:     { borderWidth: 2 },                                                                  
+  okuSpot:     { borderWidth: 2 },
   // OKU 专用位加粗边框覆盖样式 / Thicker border override for OKU spots
-  spotText:    { fontSize: 9, fontWeight: "800" },                                                  
+  spotText:    { fontSize: 7, fontWeight: "800" },
   // 格子内文字（列号 或 ♿）/ Spot cell text (col number or wheelchair emoji)
-
-  // ── 格子地图底部行 / Grid bottom row ──────────────────────────────────────
-  bottomRow:    { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },                
-  // ENTRANCE 标签靠右对齐行 / Right-aligned row for ENTRANCE badge
-  entranceBadge:{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },    
-  // ENTRANCE 方向标签 / ENTRANCE direction badge
-  entranceText: { fontWeight: "800", fontSize: 12 },                                                
-  // "ENTRANCE ↘" 文字 / ENTRANCE badge text
 
   // ── 图例 + 提示 / Legend & hint ────────────────────────────────────────────
   legend:      { flexDirection: "row", justifyContent: "center", gap: 18, marginBottom: 10 },      

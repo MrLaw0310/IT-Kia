@@ -119,6 +119,17 @@ const SECURITY_CONTACTS = [
   { name: "Emergency Hotline",    phone: "+607-000-0003" },
 ];
 
+// ─── Vehicle Registry (车辆注册表) ───────────────────────────────────────────
+// Used by the Vehicle Lookup quick action.
+// 供"车辆查询"快捷功能使用。
+// Replace with real API / database in production. (生产环境请替换为真实 API / 数据库)
+const VEHICLE_REGISTRY: Record<string, { name: string; phone: string }> = {
+  "WXY 1234": { name: "Ahmad Faiz",   phone: "+60 12-345 6789" },
+  "JHB 5678": { name: "Nurul Ain",    phone: "+60 11-234 5678" },
+  "JDT 9012": { name: "Raj Kumar",    phone: "+60 16-789 0123" },
+  "SGR 3456": { name: "Lee Mei Ling", phone: "+60 17-456 7890" },
+};
+
 // ─── Main Screen Component (主页面组件) ──────────────────────────────────────
 
 /*
@@ -126,41 +137,77 @@ const SECURITY_CONTACTS = [
    主页面 — 停车概览仪表盘。
 */
 export default function HomeScreen() {
-  // ── Read parking data from context (从 Context 读取停车数据) ─────────────
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1️⃣  CONTEXT & THEME (Context 数据 + 主题)
+  // ══════════════════════════════════════════════════════════════════════════
+
   const { activity, freeCount, occCount, okuFree, totalNormal, okuTotal,
           spots, checkIn: ctxCheckIn, checkOut: ctxCheckOut,
           vehicles, activeSession } = useParkingContext();
 
-  // ── Compute totals (计算汇总数值) ─────────────────────────────────────────
+  const { theme: T } = useTheme();
+  const router       = useRouter();
+
+  // Computed totals (计算汇总数值)
   const TOTAL_SPOTS     = totalNormal + okuTotal;  // All spots (全部车位)
   const AVAILABLE_SPOTS = freeCount + okuFree;     // Free normal + free OKU (空位总数)
   const OCCUPIED_SPOTS  = occCount;                // Occupied normal spots (普通占用数)
 
-  const { theme: T } = useTheme();
-  const router       = useRouter();
+  // Status color + label based on availability % (根据可用比例决定状态颜色和标签)
+  const pct         = Math.round((AVAILABLE_SPOTS / TOTAL_SPOTS) * 100);
+  const statusColor = pct > 40 ? T.green : pct > 20 ? T.orange : T.red;
+  const statusLabel = pct > 40 ? "Plenty of Space" : pct > 20 ? "Filling Up" : "Almost Full";
 
-  // ── Entrance animation refs (进场动画的 Animated.Value) ──────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2️⃣  ALL STATE (所有状态声明，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Entrance animation refs (进场动画的 Animated.Value)
   const fadeAnim  = useRef(new Animated.Value(0)).current;  // Opacity 0→1 (透明度)
   const slideAnim = useRef(new Animated.Value(30)).current; // Y offset 30→0 (垂直偏移)
 
-  // ── Real-time clock (实时时钟) ──────────────────────────────────────────
+  // Real-time clock (实时时钟)
   const [now, setNow] = useState(new Date());
+
+  // 🚨 Quick Action 1 — Security Modal
+  const [securityModal, setSecurityModal] = useState(false);
+
+  // ✅ Quick Action 2 — Quick Check-In / Check-Out Modal
+  const [checkInModal, setCheckInModal] = useState(false);
+  const [spotInput,    setSpotInput]    = useState("");
+
+  // 🔍 Quick Action 3 — Vehicle Lookup Modal
+  const [lookupModal,  setLookupModal]  = useState(false);
+  const [plateInput,   setPlateInput]   = useState("");
+  const [lookupResult, setLookupResult] = useState<{ name: string; plate: string; phone: string } | null>(null);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3️⃣  ALL EFFECTS (所有副作用，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Real-time clock: tick every second (每秒更新时钟)
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const hour     = now.getHours();
-  const timeStr  = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const greeting = hour < 12 ? "Good Morning 🌅" : hour < 18 ? "Good Afternoon ☀️" : "Good Evening 🌙";
-
-  // ── Entrance animation (进场动画：淡入+上滑) ──────────────────────────────
+  // Entrance animation: fade + slide up on mount (进场动画：淡入+上滑)
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim,  { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
     ]).start();
   }, []);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4️⃣  ALL HANDLERS (所有处理函数，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Derived time values (从 now 派生的时间值)
+  const hour     = now.getHours();
+  const timeStr  = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const greeting = hour < 12 ? "Good Morning 🌅" : hour < 18 ? "Good Afternoon ☀️" : "Good Evening 🌙";
 
   /*
      Open Google Maps with directions to MDIS campus.
@@ -173,33 +220,18 @@ export default function HomeScreen() {
     );
   }
 
-  // ── Status color and label (状态颜色和标签) ───────────────────────────────
-  const pct         = Math.round((AVAILABLE_SPOTS / TOTAL_SPOTS) * 100);
-  const statusColor = pct > 40 ? T.green : pct > 20 ? T.orange : T.red;
-  const statusLabel = pct > 40 ? "Plenty of Space" : pct > 20 ? "Filling Up" : "Almost Full";
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 🚨 QUICK ACTION 1 — Security Alert Modal (保安联系弹窗)
-  // ══════════════════════════════════════════════════════════════════════════
-  const [securityModal, setSecurityModal] = useState(false); // Modal visibility (弹窗是否显示)
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // ✅ QUICK ACTION 2 — Quick Check-In / Check-Out Modal
-  // • If NOT checked in  → opens modal to enter spot ID and check in
-  //   未签入 → 打开弹窗输入车位号签入
-  // • If already checked in → shows Alert asking "Are you sure to check out?"
-  //   已签入 → 弹出确认框询问是否签出
-  // ══════════════════════════════════════════════════════════════════════════
-  const [checkInModal, setCheckInModal] = useState(false); // Modal visibility (弹窗是否显示)
-  const [spotInput,    setSpotInput]    = useState("");    // User-typed spot ID (用户输入的车位号)
+  /*
+     🚨 Quick Action 1 — Security modal handler.
+     (保安弹窗由 setSecurityModal(true) 直接开启，无需额外 handler)
+  */
 
   /*
-     Button handler — branches on whether a session is active.
-     按钮处理器 — 根据是否有活动会话分支。
+     ✅ Quick Action 2 — Toggle between check-in modal and checkout alert.
+     判断当前是否有活动会话：有 → 弹出签出确认；无 → 打开签入弹窗。
   */
   function handleCheckInOutPress() {
     if (activeSession) {
-      // Already checked in → confirm checkout (已签入 → 确认签出)
+      // Already parked → confirm checkout (已停车 → 确认签出)
       Alert.alert(
         "🚗 Check Out?",
         `You are currently parked at Spot ${activeSession.spotId}.\nAre you sure you want to check out?`,
@@ -215,57 +247,39 @@ export default function HomeScreen() {
         ]
       );
     } else {
-      // Not checked in → open check-in modal (未签入 → 打开签入弹窗)
+      // Not parked → open check-in modal (未停车 → 打开签入弹窗)
       setSpotInput("");
       setCheckInModal(true);
     }
   }
 
   /*
-     Validate spot input and trigger check-in.
+     ✅ Quick Action 2 — Validate spot input and execute check-in.
      验证车位号输入，执行签入。
   */
   function handleQuickCheckIn() {
-    const id = spotInput.trim().toUpperCase(); // Normalise to uppercase (转为大写)
+    const id = spotInput.trim().toUpperCase();
     if (!id) { Alert.alert("Please enter a spot number."); return; }
 
     const spot = spots.find(s => s.id === id);
     if (!spot) {
-      Alert.alert("Spot not found", `"${id}" does not exist.\nTry format: R1-1 to R7-10`);
+      Alert.alert("Spot not found", `"${id}" does not exist.\nExample formats: OKU-1, R1-1, R12-23`);
       return;
     }
     if (spot.status !== "free") {
       Alert.alert("Spot Occupied", `Spot ${id} is already taken.`);
       return;
     }
-    const plate = vehicles[0]?.plate ?? "N/A"; // Use first registered vehicle (使用第一辆注册车辆)
+    const plate = vehicles[0]?.plate ?? "N/A";
     ctxCheckIn(spot.id, plate);
     setCheckInModal(false);
     setSpotInput("");
     Alert.alert("✅ Checked In!", `Parked at Spot ${id}`);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 🔍 QUICK ACTION 3 — Vehicle Lookup Modal (车牌查询弹窗)
-  // User types a plate → searches registered vehicles → shows contact info
-  // 用户输入车牌 → 查询已注册车辆 → 显示联系方式
-  // ══════════════════════════════════════════════════════════════════════════
-  const [lookupModal,   setLookupModal]   = useState(false); // Modal visibility (弹窗是否显示)
-  const [plateInput,    setPlateInput]    = useState("");    // User-typed plate (用户输入的车牌)
-  const [lookupResult,  setLookupResult]  = useState<{ name: string; plate: string; phone: string } | null>(null);
-
-  // Hardcoded vehicle registry — replace with real API/database in production
-  // 硬编码车辆注册表 — 生产环境替换为真实 API / 数据库
-  const VEHICLE_REGISTRY: Record<string, { name: string; phone: string }> = {
-    "WXY 1234": { name: "Ahmad Faiz",    phone: "+60 12-345 6789" },
-    "JHB 5678": { name: "Nurul Ain",     phone: "+60 11-234 5678" },
-    "JDT 9012": { name: "Raj Kumar",     phone: "+60 16-789 0123" },
-    "SGR 3456": { name: "Lee Mei Ling",  phone: "+60 17-456 7890" },
-  };
-
   /*
-     Look up a vehicle by plate number.
-     通过车牌号查询车辆信息。
+     🔍 Quick Action 3 — Look up a vehicle by plate number.
+     通过车牌号查询车主信息。
   */
   function handleVehicleLookup() {
     const plate = plateInput.trim().toUpperCase();
@@ -516,14 +530,15 @@ export default function HomeScreen() {
               style={[styles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
               value={spotInput}
               onChangeText={t => setSpotInput(t.toUpperCase())}
-              placeholder="e.g. R1-1, R3-5, R7-10"
+              placeholder="e.g. R1-1, R12-23, R12-20"
               placeholderTextColor={T.muted}
               autoCapitalize="characters"
               autoFocus
             />
             {/* Format hint (格式提示) */}
             <Text style={[styles.formatHint, { color: T.muted }]}>
-              Format: R(row)-(col) · Rows 1–7 · Cols 1–10{"\n"}
+              OKU spots: OKU-1, OKU-2{"\n"}
+              Rows 1–12 + Side column(R13) 1-20
             </Text>
 
             {/* Confirm button (确认按钮) */}

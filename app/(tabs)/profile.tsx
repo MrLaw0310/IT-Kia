@@ -307,23 +307,50 @@ function SettingRow({ icon, label, sub, onPress, right }: {
 // 👤 ProfileScreen — Main screen component (主页面组件)
 // ═════════════════════════════════════════════════════════════════════════════
 export default function ProfileScreen() {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1️⃣  CONTEXT & THEME (Context 数据 + 主题)
+  // ══════════════════════════════════════════════════════════════════════════
+
   const { theme: T, themeKey } = useTheme();
 
-  // Vehicles come from ParkingContext so changes here sync to Home & Map screens
-  // 车辆数据来自 ParkingContext，在此修改会同步到 Home 和 Map 页面
+  // Vehicles from ParkingContext — changes here sync to Home & Map (车辆来自 ParkingContext，修改后同步到 Home 和 Map)
   const { vehicles, setVehicles } = useParkingContext();
 
-  // ── Local UI state (本地 UI 状态) ─────────────────────────────────────────
-  const [avatarUri,    setAvatarUri]    = useState<string | null>(null);       // Custom avatar URI (自定义头像路径)
-  const [avatarModal,  setAvatarModal]  = useState(false);                     // AvatarModal visibility (头像弹窗是否可见)
-  const [themeModal,   setThemeModal]   = useState(false);                     // ThemePickerModal visibility (主题弹窗)
-  const [vehicleModal, setVehicleModal] = useState(false);                     // VehicleModal visibility (车辆弹窗)
-  const [editTarget,   setEditTarget]   = useState<Vehicle | undefined>(undefined); // Vehicle being edited (正在编辑的车辆)
-  const [notifP, setNotifP] = useState(true);  // Parking reminder toggle (停车提醒开关)
-  const [notifO, setNotifO] = useState(true);  // Overstay alert toggle (超时警告开关)
-  const [ratingVisible, setRatingVisible] = useState(false); // Star rating modal visibility (星级评分弹窗是否可见)
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2️⃣  ALL STATE (所有状态声明，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Avatar: take photo with camera (头像：用相机拍照) ────────────────────
+  const [avatarUri,    setAvatarUri]    = useState<string | null>(null);            // Custom avatar image URI (自定义头像路径)
+  const [avatarModal,  setAvatarModal]  = useState(false);                          // AvatarModal visibility (头像弹窗是否可见)
+  const [themeModal,   setThemeModal]   = useState(false);                          // ThemePickerModal visibility (主题弹窗是否可见)
+  const [vehicleModal, setVehicleModal] = useState(false);                          // VehicleModal visibility (车辆弹窗是否可见)
+  const [editTarget,   setEditTarget]   = useState<Vehicle | undefined>(undefined); // Vehicle currently being edited (正在编辑的车辆)
+  const [notifP,       setNotifP]       = useState(true);                           // Parking reminder notification toggle (停车提醒开关)
+  const [notifO,       setNotifO]       = useState(true);                           // Overstay alert notification toggle (超时警告开关)
+  const [ratingVisible,setRatingVisible]= useState(false);                          // Star rating modal visibility (星级评分弹窗是否可见)
+  const [hoveredStar,  setHoveredStar]  = useState(0);                              // Hovered star index for preview (鼠标悬停预览的星星索引)
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3️⃣  CONSTANTS USED BY HANDLERS (供 handlers 使用的常量)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Per-star alert messages for the Rate App feature (每个星级对应的反馈弹窗文字)
+  const starMessages: Record<number, { title: string; message: string }> = {
+    1: { title: "1 Star",  message: "Looks like you don't know how to use it. Goodbye." },
+    2: { title: "2 Stars", message: "Maybe it's not the app's problem." },
+    3: { title: "3 Stars", message: "Indecision is also a choice." },
+    4: { title: "4 Stars", message: "You're very close to the right answer." },
+    5: { title: "5 Stars", message: "Congratulations, you made the right decision." },
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 4️⃣  ALL HANDLERS (所有处理函数，集中放这里)
+  // ──────────────────────────────────────────────────────────────────────────
+  // Avatar Handlers (头像相关处理函数)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Open camera and set result as avatar (打开相机，将拍摄结果设为头像)
   async function handleCamera() {
     setAvatarModal(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -332,7 +359,7 @@ export default function ProfileScreen() {
     if (!result.canceled) setAvatarUri(result.assets[0].uri);
   }
 
-  // ── Avatar: pick from gallery (头像：从相册选择) ─────────────────────────
+  // Open photo gallery and set result as avatar (打开相册，将选择结果设为头像)
   async function handleGallery() {
     setAvatarModal(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -341,7 +368,7 @@ export default function ProfileScreen() {
     if (!result.canceled) setAvatarUri(result.assets[0].uri);
   }
 
-  // ── Avatar: remove custom photo (头像：删除自定义头像，恢复默认) ──────────
+  // Remove custom avatar and revert to default emoji (删除自定义头像，恢复默认 emoji)
   function handleRemoveAvatar() {
     setAvatarModal(false);
     Alert.alert("Remove Photo", "Are you sure?", [
@@ -350,7 +377,9 @@ export default function ProfileScreen() {
     ]);
   }
 
-  // ── Vehicle: add new (车辆：新增) ─────────────────────────────────────────
+  // ── Vehicle Handlers (车辆相关处理函数) ──────────────────────────────────
+
+  // Add a new vehicle to the list (新增车辆到列表)
   function addVehicle(plate: string, model: string, isOKU: boolean) {
     if (!plate.trim()) { Alert.alert("Error", "Please enter a plate number."); return; }
     if (vehicles.length >= MAX_VEHICLES) { Alert.alert("Limit Reached", `Maximum ${MAX_VEHICLES} vehicles allowed.`); return; }
@@ -360,11 +389,11 @@ export default function ProfileScreen() {
       model, isOKU,
       isPaid: false, // New vehicles start unpaid (新车辆默认未付费)
     }];
-    setVehicles(updated); // Persisted via ParkingContext → AsyncStorage (通过 ParkingContext 持久化到 AsyncStorage)
+    setVehicles(updated);
     Alert.alert("✅ Registered", `${plate.trim().toUpperCase()} added.\nPlease pay RM${ANNUAL_FEE} at the admin counter.`);
   }
 
-  // ── Vehicle: edit existing (车辆：编辑已有) ───────────────────────────────
+  // Edit an existing vehicle's details (编辑已有车辆信息)
   function editVehicle(plate: string, model: string, isOKU: boolean) {
     if (!editTarget) return;
     const updated = vehicles.map(v =>
@@ -373,7 +402,7 @@ export default function ProfileScreen() {
     setVehicles(updated);
   }
 
-  // ── Vehicle: remove with confirmation (车辆：二次确认删除) ─────────────────
+  // Remove a vehicle after user confirmation (二次确认后删除车辆)
   function removeVehicle(id: string) {
     Alert.alert("Remove Vehicle", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
@@ -382,7 +411,9 @@ export default function ProfileScreen() {
     ]);
   }
 
-  // ── Logout with confirmation (登出，含确认弹窗) ────────────────────────────
+  // ── Account Handlers (账号相关处理函数) ──────────────────────────────────
+
+  // Show logout confirmation alert (显示登出确认弹窗)
   function handleLogout() {
     Alert.alert("Log Out", "Are you sure?", [
       { text: "Cancel",  style: "cancel" },
@@ -390,30 +421,19 @@ export default function ProfileScreen() {
     ]);
   }
 
-  // ── Rate app: hover state for star preview (悬停预览星星) ──
-  const [hoveredStar, setHoveredStar] = useState(0);
+  // ── Rate App Handler (评分处理函数) ──────────────────────────────────────
 
-  // ── Rate app: per-star messages shown after selection (每个星级对应不同的感谢弹窗) ──
-  const starMessages: Record<number, { title: string; message: string }> = {
-    1: { title: "1 Star",  message: "Looks like you don't know how to use it. Goodbye." },
-    2: { title: "2 Stars", message: "Maybe it's not the app's problem." },
-    3: { title: "3 Stars", message: "Indecision is also a choice." },
-    4: { title: "4 Stars", message: "You're very close to the right answer." },
-    5: { title: "5 Stars", message: "Congratulations, you made the right decision." },
-  };
-
+  // Handle star selection — close modal and show corresponding message (选择星级后关闭弹窗并显示对应反馈)
   function handleStarSelect(star: number) {
     setRatingVisible(false);
     setHoveredStar(0);
     const { title, message } = starMessages[star];
     setTimeout(() => {
       Alert.alert(title, message, [{ text: "OK" }]);
-    }, 300); // Delay so modal close animation finishes before alert appears (等弹窗关闭动画结束再弹 alert)
+    }, 300); // Delay so modal close animation finishes before alert (等弹窗关闭动画结束再弹 alert)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-  // Background transparent so _layout.tsx LinearGradient shows through.
-  // 背景透明，让 _layout.tsx 的渐变透出来。
   return (
     <View style={[styles.screen, { backgroundColor: "transparent" }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>

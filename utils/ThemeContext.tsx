@@ -10,7 +10,8 @@
 //   🌊 Navy    — Deep teal → medium blue → ocean blue (深色) 深青蓝→中蓝→浅蓝灰
 //   🌌 Galaxy  — Deep space purple + cyan nebula (深色)  深蓝紫+青色星云
 //   ☁️ Sky     — Pastel yellow → lavender → soft purple (浅色) 柔黄→薰衣草→浅紫
-//   ✨ Fantasy  — Dreamy white → yellow → pink → purple (浅色) 奶白→暖橙→浅粉→蓝紫
+//   ✨ Fantasy — Dreamy white → yellow → pink → purple (浅色) 奶白→暖橙→浅粉→蓝紫
+//   🌅 Sunset  — Pale gold → Soft amber → Warm peach (浅色) 淡金→柔琥珀→浅珊瑚
 //
 // HOW IT WORKS (工作原理):
 //   - app/_layout.tsx uses `gradientColors` to render a full-screen LinearGradient
@@ -38,7 +39,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 /** Union of all valid theme keys (所有主题标识符的联合类型) */
-export type ThemeKey = "tech" | "navy" | "galaxy" | "sky" | "fantasy";
+export type ThemeKey = "tech" | "navy" | "galaxy" | "sky" | "fantasy" | "sunset";
 
 /*
    Full theme object — one instance per theme.
@@ -136,10 +137,10 @@ export const THEMES: Record<ThemeKey, Theme> = {
     blue:        "#80C8FF",
     yellow:      "#FFE080",
     text:        "#E8F4F8",
-    muted:       "#80B0C8",
+    muted:       "#a8d8f0",
     tabBar:      "#063040",
     tabBorder:   "#1A6080",
-    isDarkTheme: true,
+    isDarkTheme: false,
     gradientColors: [
       "#0A5878",  // Deep teal top (深青蓝顶部)
       "#1A78A0",
@@ -184,7 +185,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     key: "sky", name: "Sky", emoji: "☁️", desc: "Pastel yellow · Lavender · Soft purple",
     bg:          "#D8C8F8",
     card:        "#FFFFFF",   // White card on light bg — maximum clarity (浅色背景用白卡片，最清晰)
-    border:      "#D8C8F0",
+    border:      "#bea5e3",
     accent:      "#7020C8",   // Deep purple — pops on light bg (深紫，在浅色背景上跳出)
     green:       "#1A8040",   // Deep green for light bg (深绿，适合浅色背景)
     red:         "#C82030",
@@ -213,7 +214,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     key: "fantasy", name: "Fantasy", emoji: "✨", desc: "Dreamy white · Yellow · Pink · Purple",
     bg:          "#F0F0FF",
     card:        "#FFFFFF",
-    border:      "#E8D8F8",
+    border:      "#d1bae8",
     accent:      "#9020D0",   // Deep purple on light bg (深紫，浅色背景上跳出)
     green:       "#1A7838",
     red:         "#C02030",
@@ -232,6 +233,33 @@ export const THEMES: Record<ThemeKey, Theme> = {
       "#F8B8D8",  // Blush pink (浅粉)
       "#D8A0E8",  // Soft lilac (浅紫粉)
       "#9090E0",  // Blue-purple bottom (蓝紫底部)
+    ],
+  },
+  // ── 6. Sunset 日落 ───────────────────────────────────────────────────────
+  // Light theme: Pale gold (top) → soft amber → warm peach → light coral (bottom)
+  // 浅色主题：淡金（顶）→ 柔琥珀 → 暖桃粉 → 浅珊瑚（底）— 取自日落海面照片
+  sunset: {
+    key: "sunset", name: "Sunset", emoji: "🌅", desc: "Pale gold · Soft amber · Warm peach",
+    bg:          "#FFD8A0",   // Soft amber fallback (柔琥珀兜底色)
+    card:        "#FFFFFF",   // White card on light bg — maximum clarity (浅色背景用白卡片，最清晰)
+    border:      "#F0C888",   // Warm gold border (暖金边框)
+    accent:      "#C05010",   // Deep burnt orange — pops on light bg (深焦橙，浅色背景上跳出)
+    green:       "#2A7830",   // Deep forest green for light bg (深森绿，适合浅色背景)
+    red:         "#C02820",   // Deep red (深红)
+    orange:      "#D06010",   // Warm burnt orange (暖焦橙)
+    blue:        "#2060B0",   // Deep blue for OKU contrast (深蓝，与橙形成对比)
+    yellow:      "#A06000",   // Deep amber for my spot (深琥珀，我的车位)
+    text:        "#2A1000",   // Very dark brown-black text (极深棕黑文字)
+    muted:       "#9B6E3A",   // Warm toffee brown — replaces old muted (暖太妃棕，替换旧次要色)
+    tabBar:      "#FFE8C0",   // Pale warm cream tab bar (淡暖奶油Tab栏)
+    tabBorder:   "#F0C880",   // Soft gold tab border (柔金Tab边框)
+    isDarkTheme: false,       // Light theme → StatusBar uses dark icons (浅色主题→状态栏深色图标)
+    gradientColors: [
+      "#FFF4C0",  // Pale gold top — soft sun glow (淡金顶部，柔和光晕)
+      "#FFD888",  // Warm honey yellow (暖蜂蜜黄)
+      "#FFBA70",  // Soft amber — horizon band (柔琥珀，地平线)
+      "#F09868",  // Warm peach (暖桃粉)
+      "#E87858",  // Light coral bottom — ocean reflection (浅珊瑚底部，海面倒影)
     ],
   },
 };

@@ -172,18 +172,30 @@ function HistoryCard({ record, onPress }: { record: ParkingRecord; onPress: () =
 // ─── HistoryScreen (主历史记录页面) ──────────────────────────────────────────
 
 export default function HistoryScreen() {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 1️⃣  CONTEXT & THEME (Context 数据 + 主题)
+  // ══════════════════════════════════════════════════════════════════════════
+
   const { theme: T } = useTheme();
   const { activity, activeSession } = useParkingContext();
 
-  const [selected, setSelected] = useState<ParkingRecord | null>(null);          // Currently selected record for modal (当前选中的记录，用于弹窗)
-  const [filter,   setFilter]   = useState<RecordStatus | "All">("All");          // Active filter (当前激活的筛选器)
+  // ══════════════════════════════════════════════════════════════════════════
+  // 2️⃣  ALL STATE (所有状态声明，集中放这里)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const [selected, setSelected] = useState<ParkingRecord | null>(null);       // Selected record → opens DetailModal (选中的记录，触发详情弹窗)
+  const [filter,   setFilter]   = useState<RecordStatus | "All">("All");       // Active filter pill (当前激活的筛选标签)
   const filters: (RecordStatus | "All")[] = ["All", "Active", "Completed", "Overstay"];
 
-  // ── Convert ActivityItem[] → ParkingRecord[] (转换活动记录为停车记录格式) ──
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3️⃣  DERIVED DATA (从 context 数据派生的计算值，无需 handler)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Convert ActivityItem[] from context into ParkingRecord[] for display
+  // (将 context 的 ActivityItem[] 转换为此页面使用的 ParkingRecord[] 格式)
   const records: ParkingRecord[] = activity.map(item => {
-    // A record is "Active" if it's a check-in AND it matches the current active session
-    // (如果是签入记录且匹配当前活动会话，则状态为"Active")
-    const isActive = activeSession?.plate === item.plate && item.isIn;
+    const isActive = activeSession?.plate === item.plate && item.isIn; // Matches current active session (匹配当前活动会话)
     return {
       id:       item.id,
       spot:     item.spot,
@@ -191,15 +203,15 @@ export default function HistoryScreen() {
       date:     item.time ? "Today" : "—",
       checkIn:  item.isIn  ? item.time : "—",
       checkOut: item.isIn  ? undefined : item.time,
-      duration: undefined, // Duration calculation not implemented yet (时长计算暂未实现)
+      duration: undefined, // Duration calculation not yet implemented (时长计算暂未实现)
       status:   isActive ? "Active" : item.isIn ? "Active" : "Completed",
     };
   });
 
-  // Apply filter (应用筛选器)
+  // Apply filter to records (对记录应用筛选器)
   const filtered = filter === "All" ? records : records.filter(r => r.status === filter);
 
-  // Summary stats (摘要统计)
+  // Summary stats for the summary card (摘要卡片的统计数字)
   const totalSessions = records.filter(r => r.status !== "Active").length;
   const overstays     = records.filter(r => r.status === "Overstay").length;
 
