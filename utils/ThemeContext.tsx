@@ -274,7 +274,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // 启动时读取上次保存的主题 / load previously saved theme on startup
   useEffect(() => {
     AsyncStorage.getItem("app_theme").then(saved => {
-      if (saved && saved in THEMES) setThemeKey(saved as ThemeKey);
+      if (saved && saved in THEMES) {
+        setThemeKey(saved as ThemeKey);
+      }
     });
   }, []);
 

@@ -50,10 +50,18 @@ interface ActiveCheckIn {
 Returns the step indicator index for a given step value.
 */
 function getStepIndex(step: Step): number {
-  if (step === "entry") return 0;
-  if (step === "confirm")  return 1;
-  if (step === "success") return 2;
-  if (step === "checkout_confirm") return 1;
+  if (step === "entry") {
+    return 0;
+  }
+  if (step === "confirm") {
+    return 1;
+  }
+  if (step === "success") {
+    return 2;
+  }
+  if (step === "checkout_confirm") {
+    return 1;
+  }
   return 2; // checkout_success
 }
 
@@ -84,7 +92,11 @@ export default function CameraScreen() {
   useFocusEffect(useCallback(() => {
     loadActiveCheckIn();
     // 失焦时清除待执行的跳转定时器 / clear pending redirect timer on blur
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
   }, []));
 
   // ─── AsyncStorage 辅助函数 / AsyncStorage helpers ───────────────────────────
@@ -93,18 +105,28 @@ export default function CameraScreen() {
   async function loadActiveCheckIn() {
     try {
       const raw = await AsyncStorage.getItem(CHECKIN_KEY);
-      setActive(raw ? JSON.parse(raw) : null);
-    } catch { setActive(null); }
+      if (raw) {
+        setActive(JSON.parse(raw));
+      } else {
+        setActive(null);
+      }
+    } catch {
+      setActive(null);
+    }
   }
 
   /* 将活动签入保存到存储 / save active check-in to storage */
   async function saveActiveCheckIn(data: ActiveCheckIn) {
-    try { await AsyncStorage.setItem(CHECKIN_KEY, JSON.stringify(data)); } catch {}
+    try {
+      await AsyncStorage.setItem(CHECKIN_KEY, JSON.stringify(data));
+    } catch {}
   }
 
   /* 从存储中删除活动签入 / remove active check-in from storage */
   async function clearActiveCheckIn() {
-    try { await AsyncStorage.removeItem(CHECKIN_KEY); } catch {}
+    try {
+      await AsyncStorage.removeItem(CHECKIN_KEY);
+    } catch {}
   }
 
   // ─── 按钮按压动画 / Button press animation ──────────────────────────────────
@@ -121,7 +143,10 @@ export default function CameraScreen() {
   function handleScan() {
     animatePress();
     const cleaned = plate.trim().toUpperCase();
-    if (!cleaned) { setError("Please enter your plate number."); return; }
+    if (!cleaned) {
+      setError("Please enter your plate number.");
+      return;
+    }
 
     // 比较前去除两边的空格 / strip spaces from both sides before comparing
     const match = vehicles.find(
@@ -132,7 +157,9 @@ export default function CameraScreen() {
       return;
     }
     // 车牌验证通过，进入确认步骤 / plate verified, go to confirm step
-    setError(""); setMatched(match.plate); setStep("confirm");
+    setError("");
+    setMatched(match.plate);
+    setStep("confirm");
   }
 
   /* 步骤2：确认并保存签入 / Step 2: confirm and save check-in */
@@ -153,12 +180,16 @@ export default function CameraScreen() {
 
   /* 重置到初始输入步骤 / reset to initial entry step */
   function handleReset() {
-    setPlate(""); setMatched(""); setError(""); setStep("entry");
+    setPlate("");
+    setMatched("");
+    setError("");
+    setStep("entry");
   }
 
   /* 开始签出流程 / begin check-out flow */
   function handleCheckOutPress() {
-    animatePress(); setStep("checkout_confirm");
+    animatePress();
+    setStep("checkout_confirm");
   }
 
   /* 签出确认：清除会话 / check-out confirm: clear the session */
@@ -177,10 +208,17 @@ export default function CameraScreen() {
   // 派生显示值 / derived display values
   const stepIndex = getStepIndex(step);
   const isCheckOut = step === "checkout_confirm" || step === "checkout_success";
-  const headerTitle = isCheckOut ? "Check Out" : "Check In";
-  const stepLabels  = isCheckOut
-    ? ["Active Session", "Confirm", "Done"]
-    : ["Enter Plate", "Confirm", "Done"];
+  // 根据是签出还是签入决定标题 / pick header title based on flow type
+  let headerTitle = "Check In";
+  if (isCheckOut) {
+    headerTitle = "Check Out";
+  }
+
+  // 根据是签出还是签入决定步骤标签 / pick step labels based on flow type
+  let stepLabels = ["Enter Plate", "Confirm", "Done"];
+  if (isCheckOut) {
+    stepLabels = ["Active Session", "Confirm", "Done"];
+  }
 
   // 从注册车辆提取快捷选择车牌 / quick-pick plates from registered vehicles
   const registeredPlates = vehicles.map(v => v.plate);
@@ -427,8 +465,11 @@ export default function CameraScreen() {
               <Text style={styles.successEmoji}>👋</Text>
             </View>
             <Text style={[styles.successTitle, { color: T.text }]}>Checked Out!</Text>
+            {/* 签出成功步骤 / Check Out — Success */}
+            {/* activeCheckIn 此时应仍有值，但以防万一用空字符串兜底
+                activeCheckIn should still have a value here, but we fall back to "" just in case */}
             <Text style={[styles.successSub, { color: T.muted }]}>
-              {activeCheckIn?.plate ?? ""} has been released.{"\n"}Drive safely!
+              {activeCheckIn ? activeCheckIn.plate : ""} has been released.{"\n"}Drive safely!
             </Text>
           </View>
         )}

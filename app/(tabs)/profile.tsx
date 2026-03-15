@@ -358,18 +358,28 @@ export default function ProfileScreen() {
   async function handleCamera() {
     setAvatarModal(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Camera Permission Needed", "Please allow camera access in Settings."); return; }
+    if (status !== "granted") {
+      Alert.alert("Camera Permission Needed", "Please allow camera access in Settings.");
+      return;
+    }
     const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled) setAvatarUri(result.assets[0].uri);
+    if (!result.canceled) {
+      setAvatarUri(result.assets[0].uri);
+    }
   }
 
   /* 打开相册，将选择结果设为头像 / open gallery and set result as avatar */
   async function handleGallery() {
     setAvatarModal(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Gallery Permission Needed", "Please allow photo access in Settings."); return; }
+    if (status !== "granted") {
+      Alert.alert("Gallery Permission Needed", "Please allow photo access in Settings.");
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled) setAvatarUri(result.assets[0].uri);
+    if (!result.canceled) {
+      setAvatarUri(result.assets[0].uri);
+    }
   }
 
   /* 删除自定义头像，恢复默认 emoji / remove custom avatar and revert to default emoji */
@@ -385,8 +395,14 @@ export default function ProfileScreen() {
 
   /* 新增车辆到列表 / add a new vehicle to the list */
   function addVehicle(plate: string, model: string, isOKU: boolean) {
-    if (!plate.trim()) { Alert.alert("Error", "Please enter a plate number."); return; }
-    if (vehicles.length >= MAX_VEHICLES) { Alert.alert("Limit Reached", `Maximum ${MAX_VEHICLES} vehicles allowed.`); return; }
+    if (!plate.trim()) {
+      Alert.alert("Error", "Please enter a plate number.");
+      return;
+    }
+    if (vehicles.length >= MAX_VEHICLES) {
+      Alert.alert("Limit Reached", `Maximum ${MAX_VEHICLES} vehicles allowed.`);
+      return;
+    }
     const updated = [...vehicles, {
       id: Date.now().toString(),
       plate: plate.trim().toUpperCase(),
@@ -400,7 +416,9 @@ export default function ProfileScreen() {
 
   /* 编辑已有车辆信息 / edit an existing vehicle's details */
   function editVehicle(plate: string, model: string, isOKU: boolean) {
-    if (!editTarget) return;
+    if (!editTarget) {
+      return;
+    }
     const updated = vehicles.map(v =>
       v.id === editTarget.id ? { ...v, plate: plate.trim().toUpperCase(), model, isOKU } : v
     );

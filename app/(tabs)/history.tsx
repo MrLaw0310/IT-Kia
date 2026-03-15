@@ -44,8 +44,12 @@ interface ParkingRecord {
 Returns the display colour for a given record status.
 */
 function getStatusColor(status: RecordStatus, T: any): string {
-  if (status === "Active") return T.green;
-  if (status === "Completed") return T.accent;
+  if (status === "Active") {
+    return T.green;
+  }
+  if (status === "Completed") {
+    return T.accent;
+  }
   return T.red; // Overstay
 }
 
@@ -54,8 +58,12 @@ function getStatusColor(status: RecordStatus, T: any): string {
 Returns the emoji icon for a given record status.
 */
 function getStatusIcon(status: RecordStatus): string {
-  if (status === "Active") return "🟢";
-  if (status === "Completed") return "✅";
+  if (status === "Active") {
+    return "🟢";
+  }
+  if (status === "Completed") {
+    return "✅";
+  }
   return "⚠️"; // Overstay
 }
 
@@ -67,7 +75,10 @@ Shows full record details and a fee note.
 */
 function DetailModal({ record, onClose }: { record: ParkingRecord | null; onClose: () => void }) {
   const { theme: T } = useTheme();
-  if (!record) return null; // 无选中记录时不渲染 / don't render if no record selected
+  // 无选中记录时不渲染 / don't render if no record selected
+  if (!record) {
+    return null;
+  }
 
   const color = getStatusColor(record.status, T); // 状态颜色 / status colour
 
@@ -187,6 +198,14 @@ export default function HistoryScreen() {
   // Convert context ActivityItem[] into the ParkingRecord[] format used by this screen
   const records: ParkingRecord[] = activity.map(item => {
     const isActive = activeSession?.plate === item.plate && item.isIn; // 匹配当前活动会话 / matches current active session
+
+    // 判断状态：活动会话或签入中 → Active，否则 → Completed
+    // Determine status: active session or checked-in → Active, otherwise → Completed
+    let recordStatus: RecordStatus = "Completed";
+    if (isActive || item.isIn) {
+      recordStatus = "Active";
+    }
+
     return {
       id: item.id,
       spot: item.spot,
@@ -195,7 +214,7 @@ export default function HistoryScreen() {
       checkIn: item.isIn  ? item.time : "—",
       checkOut: item.isIn  ? undefined : item.time,
       duration: undefined, // 时长计算暂未实现 / duration calculation not yet implemented
-      status: isActive ? "Active" : item.isIn ? "Active" : "Completed",
+      status: recordStatus,
     };
   });
 

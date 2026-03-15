@@ -112,9 +112,19 @@ export function generateSpots(): ParkingSpot[] {
     for (let g = 0; g < groups.length; g++) {
       for (let i = 0; i < groups[g].count; i++) {
         const isOKU = groups[g].type === "oku";
-        if (isOKU) okuCount++;
+        if (isOKU) {
+          okuCount++;
+        }
+
+        // 决定车位 ID：OKU 用 "OKU-1" 格式，普通用 "R1-5" 格式
+        // Decide spot ID: OKU uses "OKU-1" format, normal uses "R1-5" format
+        let spotId = `R${globalRow + 1}-${col + 1}`;
+        if (isOKU) {
+          spotId = `OKU-${okuCount}`;
+        }
+
         spots.push({
-          id: isOKU ? `OKU-${okuCount}` : `R${globalRow + 1}-${col + 1}`,
+          id: spotId,
           row: globalRow,
           col,
           status: "free",
@@ -209,7 +219,9 @@ Custom hook to read the ParkingContext in any component.
 */
 export function useParkingContext() {
   const ctx = useContext(ParkingContext);
-  if (!ctx) throw new Error("useParkingContext must be used within ParkingProvider");
+  if (!ctx) {
+    throw new Error("useParkingContext must be used within ParkingProvider");
+  }
   return ctx;
 }
 
@@ -239,9 +251,15 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(SPOTS_KEY),
           AsyncStorage.getItem(LAYOUT_VERSION_KEY),
         ]);
-        if (v) setVehiclesState(JSON.parse(v));
-        if (s) setActiveSession(JSON.parse(s));
-        if (a) setActivity(JSON.parse(a));
+        if (v) {
+          setVehiclesState(JSON.parse(v));
+        }
+        if (s) {
+          setActiveSession(JSON.parse(s));
+        }
+        if (a) {
+          setActivity(JSON.parse(a));
+        }
 
         // 车位缓存校验：版本一致 且 格数一致 → 使用缓存；否则重新生成
         // Spots cache: use if version AND count both match; otherwise regenerate
@@ -272,17 +290,23 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
   // 将 state 变化持久化到 AsyncStorage（只在初始读取完成后，避免用默认值覆盖已保存数据）
   // Persist state changes to AsyncStorage — only after initial load to avoid overwriting saved data
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
     AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify(vehicles)).catch(() => {});
   }, [vehicles, loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
     AsyncStorage.setItem(SPOTS_KEY, JSON.stringify(spots)).catch(() => {});
   }, [spots, loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
     if (activeSession) {
       AsyncStorage.setItem(SESSION_KEY, JSON.stringify(activeSession)).catch(() => {});
     } else {
@@ -291,7 +315,9 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
   }, [activeSession, loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
     AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity)).catch(() => {});
   }, [activity, loaded]);
 
@@ -332,11 +358,14 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     const time = now();
     // 同时更新 spot 和 session，避免 useEffect 竞争
     // Update spot and session together to avoid useEffect race conditions
-    setSpotsState(prev => prev.map(s =>
-      s.id === spotId
-        ? { ...s, status: "occupied", plate, checkedIn: time }
-        : s
-    ));
+    setSpotsState(prev => prev.map(s => {
+      // 找到对应车位，更新为占用状态 / find the matching spot and mark it as occupied
+      if (s.id === spotId) {
+        return { ...s, status: "occupied", plate, checkedIn: time };
+      } else {
+        return s;
+      }
+    }));
     setActiveSession({ spotId, plate, checkedIn: time });
     addActivity({ plate, action: "Checked In", spot: spotId, time, isIn: true });
   }
@@ -346,14 +375,21 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
   Check out from the current active session. Frees the spot and clears the session.
   */
   function checkOut() {
-    if (!activeSession) return;
+    if (!activeSession) {
+      return;
+    }
     const time = now();
     const spotId = activeSession.spotId;
     const plate = activeSession.plate;
     // 先释放车位，再清空会话 / free the spot first, then clear session
-    setSpotsState(prev => prev.map(s =>
-      s.id === spotId ? { ...s, status: "free", plate: undefined, checkedIn: undefined } : s
-    ));
+    setSpotsState(prev => prev.map(s => {
+      // 找到对应车位，更新为空闲状态 / find the matching spot and mark it as free
+      if (s.id === spotId) {
+        return { ...s, status: "free", plate: undefined, checkedIn: undefined };
+      } else {
+        return s;
+      }
+    }));
     setActiveSession(null);
     addActivity({ plate, action: "Checked Out", spot: spotId, time, isIn: false });
   }

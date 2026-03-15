@@ -50,8 +50,12 @@ Returns a status colour based on availability percentage.
  ≤ 20% → 红色 red (几乎满)
 */
 function getAvailabilityColor(pct: number, T: any): string {
-  if (pct > 40) return T.green;
-  if (pct > 20) return T.orange;
+  if (pct > 40) {
+    return T.green;
+  }
+  if (pct > 20) {
+    return T.orange;
+  }
   return T.red;
 }
 
@@ -60,8 +64,12 @@ function getAvailabilityColor(pct: number, T: any): string {
 Returns a human-readable status label based on availability percentage.
 */
 function getStatusLabel(pct: number): string {
-  if (pct > 40) return "Plenty of Space";
-  if (pct > 20) return "Filling Up";
+  if (pct > 40) {
+    return "Plenty of Space";
+  }
+  if (pct > 20) {
+    return "Filling Up";
+  }
   return "Almost Full";
 }
 
@@ -175,7 +183,14 @@ export default function HomeScreen() {
   // 从 now 派生时间值 / time values derived from current Date
   const hour = now.getHours();
   const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const greeting = hour < 12 ? "Good Morning 🌅" : hour < 18 ? "Good Afternoon ☀️" : "Good Evening 🌙";
+
+  // 根据时段决定问候语 / pick greeting based on time of day
+  let greeting = "Good Evening 🌙";
+  if (hour < 12) {
+    greeting = "Good Morning 🌅";
+  } else if (hour < 18) {
+    greeting = "Good Afternoon ☀️";
+  }
 
   /*
   打开 Google Maps 导航到 MDIS 校园。
@@ -222,7 +237,10 @@ export default function HomeScreen() {
   */
   function handleQuickCheckIn() {
     const id = spotInput.trim().toUpperCase();
-    if (!id) { Alert.alert("Please enter a spot number."); return; }
+    if (!id) {
+      Alert.alert("Please enter a spot number.");
+      return;
+    }
 
     const spot = spots.find(s => s.id === id);
     if (!spot) {
@@ -246,7 +264,10 @@ export default function HomeScreen() {
   */
   function handleVehicleLookup() {
     const plate = plateInput.trim().toUpperCase();
-    if (!plate) { Alert.alert("Please enter a plate number."); return; }
+    if (!plate) {
+      Alert.alert("Please enter a plate number.");
+      return;
+    }
 
     const found = VEHICLE_REGISTRY[plate];
     if (found) {
