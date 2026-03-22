@@ -946,9 +946,28 @@ export default function HomeScreen() {
       return;
     }
 
-    const found = VEHICLE_REGISTRY[plate];
-    if (found) {
-      setLookupResult({ name: found.name, plate, phone: found.phone });
+    // [BUG 5 FIX] 去掉所有内部空格后再与 VEHICLE_REGISTRY 的 key 比较。
+    // 原来直接用 VEHICLE_REGISTRY[plate] 精确匹配，key 带空格（如 "WXY 1234"），
+    // 用户输入 "WXY1234"（无空格）时查不到，反之亦然。
+    // [BUG 5 FIX] Strip all internal spaces before matching against VEHICLE_REGISTRY keys.
+    // Previously VEHICLE_REGISTRY[plate] did an exact key lookup — keys contain spaces
+    // (e.g. "WXY 1234") so input like "WXY1234" (no space) would never match, and vice versa.
+    const plateNoSpaces = plate.replace(/\s/g, "");
+    let foundKey: string | undefined;
+    let foundEntry: { name: string; phone: string } | undefined;
+    const registryKeys = Object.keys(VEHICLE_REGISTRY);
+    for (let i = 0; i < registryKeys.length; i++) {
+      if (registryKeys[i].replace(/\s/g, "").toUpperCase() === plateNoSpaces) {
+        foundKey   = registryKeys[i];
+        foundEntry = VEHICLE_REGISTRY[registryKeys[i]];
+        break;
+      }
+    }
+
+    if (foundEntry && foundKey) {
+      // 展示原始 key 的车牌格式（保留空格），保持一致性
+      // Display the canonical plate format from the registry key (preserving spaces)
+      setLookupResult({ name: foundEntry.name, plate: foundKey, phone: foundEntry.phone });
     } else {
       setLookupResult(null);
       Alert.alert("Not Found", 'No record for plate "' + plate + '".');

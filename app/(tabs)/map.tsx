@@ -154,7 +154,7 @@ function getSpotColor(
     if (isFree) {
       return T.blue;
     }
-    return T.whitegrey;
+    return T.muted;
   }
 
   // 普通车位：空位绿，占用红

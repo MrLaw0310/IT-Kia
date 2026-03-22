@@ -533,7 +533,14 @@ export default function CameraScreen() {
 
   // 从 ParkingContext 读取注册车辆和签入/签出函数
   // Read registered vehicles and check-in/out functions from ParkingContext
-  const { vehicles, checkOut: ctxCheckOut, activeSession } = useParkingContext(); // camera 只签出，不签入；签入在 Map 页面完成 / camera uses checkOut only; check-in happens in Map
+  // [BUG 1 FIX] 同时取出 checkIn，camera 页面需要在 confirm 步骤写入 Context 才能与 Map/Home 同步
+  // [BUG 1 FIX] Also destructure checkIn — camera must write to Context on confirm so Map/Home stay in sync
+  const {
+    vehicles,
+    checkIn:  ctxCheckIn,
+    checkOut: ctxCheckOut,
+    activeSession,
+  } = useParkingContext();
 
   // ── 本地状态 / Local state ───────────────────────────────────────────────────
 
@@ -551,12 +558,28 @@ export default function CameraScreen() {
   // Matched vehicle object — used in confirm step to read fields such as isPaid
   const [matchedVehicle, setMatchedVehicle] = useState<typeof vehicles[0] | null>(null);
 
+  // 已匹配的车位 ID（confirm 步骤后签入时使用，初始为空字符串）
+  // Matched spot ID — used when writing check-in to Context; empty until Step 1 selects a spot
+  // 注意：camera 页面签入时车位 ID 未知（用户未在 Map 上选位），传空字符串触发 Context 自动分配逻辑
+  // Note: spot ID is unknown here (user has not chosen a spot on the Map), so we pass an empty
+  // string and rely on ParkingContext.checkIn to handle or assign a default spot
+  const [matchedSpotId, setMatchedSpotId] = useState("");
+
   // 错误提示文字 / Error message text
   const [error, setError] = useState("");
 
   // 本地活动签入快照（从 activeSession 同步而来）
   // Local active check-in snapshot — synced from activeSession
   const [localCheckIn, setLocalCheckIn] = useState<ActiveCheckInSnapshot | null>(null);
+
+  // [BUG 2 FIX] 签出成功画面专用的车牌快照
+  // [BUG 2 FIX] Dedicated plate snapshot for the checkout_success screen.
+  // handleCheckOutConfirm 调用 setLocalCheckIn(null) 后，checkout_success 渲染时 localCheckIn 已为 null，
+  // 导致车牌显示空白。此 state 在清空 localCheckIn 之前保存车牌，确保成功画面能正确显示。
+  // After handleCheckOutConfirm sets localCheckIn to null, checkout_success renders with a null
+  // localCheckIn, causing the plate to appear blank. This state captures the plate before
+  // clearing localCheckIn so the success screen always has something to display.
+  const [savedCheckOutPlate, setSavedCheckOutPlate] = useState("");
 
   // ── Refs / Refs ──────────────────────────────────────────────────────────────
 
@@ -575,9 +598,28 @@ export default function CameraScreen() {
     if (activeSession) {
       // 有活动会话：建立本地快照供横幅显示
       // Active session exists — build a local snapshot for banner display
-      const now      = new Date();
-      const timeStr  = now.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
-      const dateStr  = now.toLocaleDateString("en-MY",  { day: "numeric", month: "short", year: "numeric" });
+
+      // [BUG 7 FIX] 优先从 activeSession.checkedInAt 读取真实签入时间戳，
+      // 避免每次重新聚焦时用当前时间覆盖，导致横幅显示错误的签入时刻。
+      // [BUG 7 FIX] Prefer the real check-in timestamp stored in activeSession.checkedInAt.
+      // Without this, revisiting the screen would show the current time instead of the
+      // actual check-in time, making the banner inaccurate.
+      let timeStr: string;
+      let dateStr: string;
+      const checkedInAt = (activeSession as any).checkedInAt as string | undefined;
+      if (checkedInAt) {
+        // 用真实签入时间格式化 / Format from the real check-in timestamp
+        const checkedInDate = new Date(checkedInAt);
+        timeStr = checkedInDate.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+        dateStr = checkedInDate.toLocaleDateString("en-MY",  { day: "numeric", month: "short", year: "numeric" });
+      } else {
+        // Context 未提供时间戳，回退到当前时间（兼容旧版 Context）
+        // Context does not expose a timestamp — fall back to current time (backward compatible)
+        const now = new Date();
+        timeStr = now.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+        dateStr = now.toLocaleDateString("en-MY",  { day: "numeric", month: "short", year: "numeric" });
+      }
+
       setLocalCheckIn({ plate: activeSession.plate, time: timeStr, date: dateStr });
     } else {
       setLocalCheckIn(null);
@@ -649,6 +691,9 @@ export default function CameraScreen() {
     setMatchedPlate(foundVehicle.plate);
     setMatchedVehicle(foundVehicle); // 保存完整车辆对象，供 confirm 步骤读取 isPaid 等字段
                                      // Save full vehicle object so confirm step can read isPaid etc.
+    // camera 页面不要求用户先选车位（直接从车牌签入），传空字符串让 Context 处理
+    // Camera screen does not ask the user to pick a spot first; pass empty string so Context handles it
+    setMatchedSpotId("");
     setStep("confirm");
   }
 
@@ -658,6 +703,16 @@ export default function CameraScreen() {
   */
   function handleConfirm() {
     animatePress();
+
+    // [BUG 1 FIX] 调用 Context 的 checkIn，将签入写入全局状态，
+    // 使 Map 和 Home 页面立即感知到当前停车会话。
+    // 原来只更新本地 localCheckIn 快照，Context 未被通知，
+    // 导致 Map 不显示已签入车位，History 无记录，签出横幅不出现。
+    // [BUG 1 FIX] Call Context checkIn to persist the session globally.
+    // Previously only localCheckIn was updated locally — Context was never notified,
+    // so Map showed no occupied spot, History had no record, and the check-out banner
+    // never appeared on other screens.
+    ctxCheckIn(matchedSpotId, matchedPlate);
 
     // 生成当前时间快照供本地显示
     // Build a time snapshot for local display
@@ -703,6 +758,15 @@ export default function CameraScreen() {
   */
   function handleCheckOutConfirm() {
     animatePress();
+
+    // [BUG 2 FIX] 在清空 localCheckIn 之前先保存车牌到专用 state，
+    // 确保 checkout_success 画面能正常显示车牌，而不是空白。
+    // 原来直接 setLocalCheckIn(null)，checkout_success 渲染时读到 null，
+    // 导致 "{localCheckIn ? localCheckIn.plate : ""}" 输出空字符串。
+    // [BUG 2 FIX] Save the plate to a dedicated state before clearing localCheckIn.
+    // Previously setLocalCheckIn(null) was called immediately, so checkout_success
+    // rendered with null and displayed an empty string for the plate.
+    setSavedCheckOutPlate(localCheckIn ? localCheckIn.plate : "");
 
     // 通知 Context 签出（Map 和 Home 会自动同步）
     // Notify Context to check out — Map and Home will sync automatically
@@ -1136,8 +1200,17 @@ export default function CameraScreen() {
               <Text style={styles.successEmoji}>👋</Text>
             </View>
             <Text style={[styles.successTitle, { color: T.text }]}>Checked Out!</Text>
+            {/*
+              [BUG 2 FIX] 使用 savedCheckOutPlate 代替 localCheckIn?.plate。
+              handleCheckOutConfirm 执行 setLocalCheckIn(null) 后，localCheckIn 在此处已为 null，
+              直接读取会显示空字符串。savedCheckOutPlate 在清空前已保存了车牌，始终有值。
+              [BUG 2 FIX] Use savedCheckOutPlate instead of localCheckIn?.plate.
+              By the time checkout_success renders, localCheckIn is null (cleared in
+              handleCheckOutConfirm), so reading it would produce an empty string.
+              savedCheckOutPlate was captured before the clear and always has the correct value.
+            */}
             <Text style={[styles.successSub, { color: T.muted }]}>
-              {localCheckIn ? localCheckIn.plate : ""} has been released.{"\n"}Drive safely!
+              {savedCheckOutPlate} has been released.{"\n"}Drive safely!
             </Text>
           </View>
         )}

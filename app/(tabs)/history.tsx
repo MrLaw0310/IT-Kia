@@ -18,6 +18,15 @@ Shows a chronological list of all parking sessions (check-in/out events).
 超时判定 / Overstay threshold:
  签入超过 OVERSTAY_HOURS 小时且仍未签出，状态标记为 Overstay。
  A session still active beyond OVERSTAY_HOURS is flagged as Overstay.
+
+[BUG 3 & 4 FIX] 记录配对说明 / Record pairing note:
+ activity 数组中每个事件是独立的（isIn=true 为签入，isIn=false 为签出）。
+ 修复后先将 isIn/isOut 事件按车牌+车位配对，合并为一条完整停车记录，
+ 确保每条记录同时包含签入和签出时间，已完成的历史签入事件不再错误显示为 Active。
+ Each activity item is a standalone event (isIn=true = check-in, isIn=false = check-out).
+ The fix first pairs isIn/isOut events by plate+spot into complete session records,
+ so each record has both check-in and check-out times, and completed historical
+ check-in events no longer incorrectly appear as Active.
 */
 
 import { useState } from "react";
@@ -113,8 +122,26 @@ function isOverstay(checkedInAt: string): boolean {
 }
 
 /*
-根据活动状态和签入信息，计算出该记录的显示状态。
-Derives the display status for a record based on whether it is active and whether it is overstay.
+[BUG 3 FIX] 根据活动状态和签入信息，计算出该记录的显示状态。
+[BUG 3 FIX] Derives the display status for a record.
+
+原来的逻辑：只要 isInEvent 为 true（不管是不是当前活动会话），都跳过第一个 if，
+最终返回 "Active"——导致所有历史签入事件都被标为 Active，而不是 Completed。
+
+修复后的逻辑：
+ - 如果既不是当前活动会话，也不是签入事件（即签出事件）→ Completed
+ - [NEW] 如果是签入事件但不是当前活动会话 → 该签入已配对签出，也标为 Completed
+ - 如果是当前活动会话 → 检查是否超时，超时则 Overstay，否则 Active
+
+Original logic: whenever isInEvent was true (regardless of whether it was the
+current active session), the first guard was skipped and the function returned
+"Active" — causing all historical check-in events to be labelled Active.
+
+Fixed logic:
+ - Not the active session and not a check-in event (i.e. a check-out event) → Completed
+ - [NEW] Is a check-in event but NOT the active session → already paired with a
+   check-out, so mark Completed
+ - Is the active session → check overstay threshold; Overstay or Active accordingly
 
 @param isActive     是否是当前活动会话 / whether this is the current active session
 @param isInEvent    activity item 的 isIn 标志 / the isIn flag from the activity item
@@ -125,13 +152,19 @@ function deriveRecordStatus(
   isInEvent:   boolean,
   checkedInAt: string | undefined
 ): RecordStatus {
-  // 既不是当前活动会话也不是签入事件，直接标记已完成
+  // 既不是当前活动会话也不是签入事件（即签出事件），直接标记已完成
   // Neither the active session nor a check-in event — mark as Completed
   if (!isActive && !isInEvent) {
     return "Completed";
   }
 
-  // 是活动会话：检查是否超时
+  // [BUG 3 FIX] 是签入事件但不是当前活动会话，说明该次签入已完成（已配对签出）
+  // [BUG 3 FIX] Is a check-in event but not the active session — session has ended
+  if (isInEvent && !isActive) {
+    return "Completed";
+  }
+
+  // 是当前活动会话：检查是否超时
   // Active session: check if overstay threshold is exceeded
   if (checkedInAt) {
     if (isOverstay(checkedInAt)) {
@@ -837,9 +870,114 @@ export default function HistoryScreen() {
   const [filter, setFilter] = useState<RecordStatus | "All">("All");
 
   // ── 数据转换 / Data transformation ──────────────────────────────────────────
-  // 将 context 的 ActivityItem[] 转换为此页面使用的 ParkingRecord[] 格式
-  // Convert context ActivityItem[] into the ParkingRecord[] format used by this screen
-  const records: ParkingRecord[] = activity.map(function convertActivityItem(item) {
+  /*
+  [BUG 4 FIX] 将 context 的 ActivityItem[] 配对合并为 ParkingRecord[]。
+  [BUG 4 FIX] Pair and merge context ActivityItem[] into ParkingRecord[].
+
+  原来每条 activity 直接映射为一条记录，导致：
+   - isIn 事件的 checkOut 永远是 undefined
+   - isOut 事件的 checkIn 永远是 "—"
+   - 用户在 Detail Modal 里看不到完整的一次停车记录
+
+  修复逻辑：
+   1. 将 isIn 事件建立索引（按 plate+spot 作为 key）
+   2. 遇到对应的 isOut 事件时，从索引找到对应的 isIn，合并成一条完整记录
+   3. 未配对的 isIn 事件（当前还在停车中）保持独立，状态视 activeSession 而定
+   4. 未配对的 isOut 事件理论上不存在，如果存在也作为独立记录保留（防御性）
+
+  Previously each activity item mapped 1-to-1 to a record, so:
+   - isIn events always had checkOut = undefined
+   - isOut events always had checkIn = "—"
+   - The Detail Modal never showed a complete parking session
+
+  Fixed logic:
+   1. Index isIn events by plate+spot key
+   2. When a matching isOut event is found, retrieve the isIn from the index and
+      merge into one complete record
+   3. Unmatched isIn events (still parked) remain standalone, status from activeSession
+   4. Unmatched isOut events (defensive — should not normally occur) kept as-is
+  */
+
+  // 已配对签出的签入事件 ID 集合（避免重复渲染）
+  // Set of isIn event IDs that have been paired with a checkout (prevents duplicate rendering)
+  const pairedInIds = new Set<string>();
+
+  // 以 plate+spot 为 key 的签入事件快速查找表
+  // Quick-lookup map of isIn events keyed by plate+spot
+  const inEventMap: Record<string, typeof activity[0]> = {};
+  for (let i = 0; i < activity.length; i++) {
+    const item = activity[i];
+    if (item.isIn) {
+      const key = item.plate + "|" + item.spot;
+      // 同一 plate+spot 可能有多次签入历史；保留最新的（数组靠前 = 更新）
+      // The same plate+spot may have multiple historical check-ins; keep the latest (earlier index = newer)
+      if (!inEventMap[key]) {
+        inEventMap[key] = item;
+      }
+    }
+  }
+
+  const records: ParkingRecord[] = [];
+
+  for (let i = 0; i < activity.length; i++) {
+    const item = activity[i];
+
+    if (!item.isIn) {
+      // ── 签出事件：尝试找到对应的签入事件配对 ──────────────────────────────
+      // ── Check-out event: attempt to find and pair with a matching check-in ──
+      const key       = item.plate + "|" + item.spot;
+      const inEvent   = inEventMap[key];
+
+      // 日期文字 / Date text
+      let recordDate: string;
+      if (item.time) {
+        recordDate = "Today";
+      } else {
+        recordDate = "—";
+      }
+
+      if (inEvent) {
+        // 配对成功：合并签入 + 签出为一条完整记录
+        // Paired: merge check-in and check-out into one complete record
+        pairedInIds.add(inEvent.id);
+
+        records.push({
+          id:       item.id,           // 用签出 ID 作为记录 ID / use checkout ID as record ID
+          spot:     item.spot,
+          plate:    item.plate,
+          date:     recordDate,
+          checkIn:  inEvent.time,      // 真实签入时间 / real check-in time
+          checkOut: item.time,         // 真实签出时间 / real check-out time
+          duration: undefined,         // 时长计算依赖 checkedInAt，暂用 undefined / depends on checkedInAt
+          status:   "Completed",       // 有签出事件 → 一定已完成 / has check-out → always Completed
+        });
+      } else {
+        // 防御性：签出事件找不到对应签入（理论上不应出现）
+        // Defensive: checkout without matching check-in (should not normally occur)
+        records.push({
+          id:       item.id,
+          spot:     item.spot,
+          plate:    item.plate,
+          date:     recordDate,
+          checkIn:  "—",
+          checkOut: item.time,
+          duration: undefined,
+          status:   "Completed",
+        });
+      }
+    }
+  }
+
+  // ── 处理未配对的签入事件（当前仍在停车中的会话）──────────────────────────
+  // ── Handle unpaired check-in events (sessions still active) ───────────────
+  for (let i = 0; i < activity.length; i++) {
+    const item = activity[i];
+
+    // 跳过非签入事件和已配对的签入事件
+    // Skip non-check-in events and check-in events that have already been paired
+    if (!item.isIn || pairedInIds.has(item.id)) {
+      continue;
+    }
 
     // 判断是否是当前活动会话（车牌匹配且是签入事件）
     // Check if this item matches the current active session — same plate and is a check-in event
@@ -859,12 +997,13 @@ export default function HistoryScreen() {
       checkedInAt = undefined;
     }
 
-    // 计算记录状态
-    // Derive the record status
+    // [BUG 3 FIX] 计算记录状态：未配对的签入事件只有在匹配 activeSession 时才可能是 Active/Overstay
+    // [BUG 3 FIX] Derive status: unpaired check-in events can only be Active/Overstay if
+    // they match the current activeSession; otherwise they are Completed (their checkout
+    // event was not found, which is an edge case treated conservatively as done)
     const recordStatus = deriveRecordStatus(isActive, item.isIn, checkedInAt);
 
-    // 日期文字：有时间记录时显示"Today"，否则显示破折号
-    // Date text: show "Today" if time is recorded, dash otherwise
+    // 日期文字 / Date text
     let recordDate: string;
     if (item.time) {
       recordDate = "Today";
@@ -872,17 +1011,17 @@ export default function HistoryScreen() {
       recordDate = "—";
     }
 
-    return {
+    records.push({
       id:       item.id,
       spot:     item.spot,
       plate:    item.plate,
       date:     recordDate,
-      checkIn:  item.isIn  ? item.time : "—",
-      checkOut: item.isIn  ? undefined  : item.time,
-      duration: undefined, // 时长计算依赖 checkedInAt，暂用 undefined / depends on checkedInAt timestamp
+      checkIn:  item.time,
+      checkOut: undefined,   // 尚未签出 / not yet checked out
+      duration: undefined,   // 时长计算依赖 checkedInAt，暂用 undefined / depends on checkedInAt
       status:   recordStatus,
-    };
-  });
+    });
+  }
 
   // ── 筛选 / Filtering ─────────────────────────────────────────────────────────
   // "All" 不过滤，其他筛选器只保留对应状态的记录
