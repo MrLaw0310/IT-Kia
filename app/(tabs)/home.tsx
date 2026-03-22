@@ -1039,6 +1039,42 @@ export default function HomeScreen() {
     checkInOutLabel = "Quick Check-In";
   }
 
+  // ── 最近活动列表渲染 / Recent activity list renderer ────────────────────────
+  /*
+  抽取为函数，使 JSX 更简洁，与团队其他页面风格保持一致。
+  Extracted as a function to keep JSX concise and consistent with other screens.
+  */
+  function renderActivityList() {
+    if (activity.length === 0) {
+      return (
+        <View style={{ padding: 20, alignItems: "center" }}>
+          <Text style={{ color: T.muted, fontSize: 13 }}>No activity yet</Text>
+        </View>
+      );
+    }
+
+    return activity.map(function renderActivityItem(item) {
+      // 绿点=签入，红点=签出 / green dot = check-in, red dot = check-out
+      let dotColor = T.red;
+      if (item.isIn) {
+        dotColor = T.green;
+      }
+      return (
+        <View
+          key={item.id}
+          style={[styles.activityCard, { backgroundColor: T.card, borderColor: T.border }]}
+        >
+          <View style={[styles.activityDot, { backgroundColor: dotColor }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.activityPlate, { color: T.text }]}>{item.plate}</Text>
+            <Text style={[styles.activityAction, { color: T.muted }]}>{item.action}</Text>
+          </View>
+          <Text style={[styles.activityTime, { color: T.muted }]}>{item.time}</Text>
+        </View>
+      );
+    });
+  }
+
   // ── 渲染 / Render ────────────────────────────────────────────────────────────
   return (
     <View style={[styles.screen, { backgroundColor: "transparent" }]}>
@@ -1206,35 +1242,7 @@ export default function HomeScreen() {
 
         {/* 最近活动列表 / Recent activity list */}
         <Text style={[styles.sectionTitle, { color: T.muted }]}>RECENT ACTIVITY</Text>
-        {activity.length === 0 ? (
-          <View style={{ padding: 20, alignItems: "center" }}>
-            <Text style={{ color: T.muted, fontSize: 13 }}>No activity yet</Text>
-          </View>
-        ) : (
-          activity.map(function renderActivityItem(item) {
-            // 绿点=签入，红点=签出
-            // Green dot = check-in, red dot = check-out
-            let dotColor: string;
-            if (item.isIn) {
-              dotColor = T.green;
-            } else {
-              dotColor = T.red;
-            }
-            return (
-              <View
-                key={item.id}
-                style={[styles.activityCard, { backgroundColor: T.card, borderColor: T.border }]}
-              >
-                <View style={[styles.activityDot, { backgroundColor: dotColor }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.activityPlate, { color: T.text }]}>{item.plate}</Text>
-                  <Text style={[styles.activityAction, { color: T.muted }]}>{item.action}</Text>
-                </View>
-                <Text style={[styles.activityTime, { color: T.muted }]}>{item.time}</Text>
-              </View>
-            );
-          })
-        )}
+        {renderActivityList()}
 
       </ScrollView>
 
