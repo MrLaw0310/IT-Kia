@@ -25,10 +25,12 @@ Shows a chronological list of all parking sessions (check-in/out events).
  check-in events no longer incorrectly appear as Active.
 */
 
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import { useAuth } from "../../utils/AuthContext";
 import { useParkingContext } from "../../utils/ParkingContext";
 import { useTheme } from "../../utils/ThemeContext";
 
@@ -314,16 +316,47 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: "center", paddingVertical: 60 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyText: { fontSize: 15 },
+  // 访客锁定提示样式 / Guest lock screen styles
+  guestWrap: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
+  guestIcon: { fontSize: 48, marginBottom: 16 },
+  guestTitle: { fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 8 },
+  guestSub: { fontSize: 14, textAlign: "center", lineHeight: 22, marginBottom: 28 },
+  guestBtn: { borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14 },
+  guestBtnText: { color: "white", fontWeight: "800", fontSize: 15 },
 });
 
 // ─── HistoryScreen (主历史记录页面) ───────────────────────────────────────────
 export default function HistoryScreen() {
-
+  const { isGuest } = useAuth();
   const { theme: T } = useTheme();
   const { activity, activeSession } = useParkingContext();
+  const router = useRouter();
 
+  // ── Hook 必须在所有条件判断之前调用 / Hooks must be called before any early returns ──
   const [selected, setSelected] = useState<ParkingRecord | null>(null);
   const [filter, setFilter]     = useState<RecordStatus | "All">("All");
+
+  // 访客模式：整页锁住，提示需登录
+  // Guest mode: full page lock with sign-in prompt
+  if (isGuest) {
+    return (
+      <View style={[styles.screen, styles.guestWrap, { backgroundColor: "transparent" }]}>
+        <Text style={styles.guestIcon}>🔒</Text>
+        <Text style={[styles.guestTitle, { color: T.text }]}>Sign In Required</Text>
+        <Text style={[styles.guestSub, { color: T.muted }]}>
+          Your parking history is only available to registered students.{"\n\n"}
+          Please sign in to view your records.
+        </Text>
+        <TouchableOpacity
+          style={[styles.guestBtn, { backgroundColor: T.accent }]}
+          onPress={function goToSignIn() { router.push("/login" as any); }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.guestBtnText}>Sign In</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // ── 数据转换 / Data transformation ──────────────────────────────────────────
   /*

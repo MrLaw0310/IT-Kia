@@ -6,26 +6,22 @@ The first screen users see when opening the app.
 
 动画顺序 / Animation sequence:
  1. Logo "MDIS" 淡入 + 弹性缩放出现 / fades in + spring scales up
- 2. 标语和 App 名称淡入 / slogan and app name fade in
+ 2. 标记和 App 名称淡入 / slogan and app name fade in
  3. 加载进度条从左向右填充 / loading bar fills left to right
- 4. 进度条完成后跳转到 (tabs)/home / navigates to (tabs)/home after bar completes
+ 4. 进度条完成后由 _layout.tsx 决定跳转目标 / _layout.tsx handles navigation after bar completes
 
 注意：此页面使用固定深色背景 (#060D1F)，因为 ThemeProvider 此时尚未就绪。
 Note: hardcoded dark background (#060D1F) — ThemeProvider is not yet available here.
 
-如需修改 / To customise:
- - 加载时长 → 调整 Animated.timing() 的 duration 值
-   Loading duration → edit duration in Animated.timing()
- - 跳转目标 → 修改 router.replace() 的路径
-   Destination → edit router.replace() path
- - 颜色 → 修改 styles 里的 #060D1F 和 #1E90FF
-   Colors → change #060D1F and #1E90FF in styles
+注意：不要在此文件调用 useAuth()！index.tsx 在 AuthProvider 完全就绪前可能渲染，
+      调用 useAuth() 会破坏整个 context 树，导致 login.tsx 里 enterGuestMode 变成 undefined。
+Note: Do NOT call useAuth() here! index.tsx may render before AuthProvider is ready,
+      which breaks the entire context tree and causes enterGuestMode to be undefined in login.tsx.
 */
 
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../utils/AuthContext";
 
 // ─── 进度条插值范围常量 / Interpolation range constants for the loading bar ───
 // barWidth 动画值从 0 到 1，插值输出为宽度百分比字符串
@@ -33,8 +29,8 @@ import { useAuth } from "../utils/AuthContext";
 const BAR_INPUT_RANGE  = [0, 1];
 const BAR_OUTPUT_RANGE = ["0%", "100%"];
 
-// ─── Styles for SplashScreen ─────────────────────────────────────────────────
-// 注意：固定深色颜色，不依赖主题系统（主题此时尚未加载）
+// ─── Styles ──────────────────────────────────────────────────────────────────
+// 注意：固定深色颜色，主题系统此时尚未加载
 // Note: hardcoded dark colors — theme system not yet loaded at this point
 const styles = StyleSheet.create({
 
@@ -137,7 +133,7 @@ const styles = StyleSheet.create({
 
 // ─── SplashScreen ─────────────────────────────────────────────────────────────
 /*
-App 启动时显示的带动画欢迎画面。
+App 启动时显示的带动画迎接画面。
 Animated launch screen shown on app start.
 */
 export default function SplashScreen() {
@@ -145,10 +141,6 @@ export default function SplashScreen() {
   // 路由钩子，用于动画结束后跳转
   // Router hook — used to navigate after animations finish
   const router = useRouter();
-
-  // 读取登录状态，动画结束后据此决定跳转目标
-  // Read auth state — used to decide where to navigate after animation
-  const { user, loading } = useAuth();
 
   // ── 动画值（每个控制一个视觉属性）/ Animation values (one per visual property) ──
 
@@ -160,7 +152,7 @@ export default function SplashScreen() {
   // Logo scale — springs from 0.8 to 1.0
   const logoScale = useRef(new Animated.Value(0.8)).current;
 
-  // 标语和 App 名称的透明度，logo 出现后再淡入
+  // 标记和 App 名称的透明度，logo 出现后再淡入
   // Slogan and app name opacity — fades in after logo appears
   const sloganOpacity = useRef(new Animated.Value(0)).current;
 
@@ -174,7 +166,7 @@ export default function SplashScreen() {
     // Phase 1: Logo fades in and spring-scales simultaneously
     const logoFadeIn = Animated.timing(logoOpacity, {
       toValue: 1,
-      duration: 700,
+      duration: 1200,
       useNativeDriver: true,
     });
 
@@ -185,11 +177,11 @@ export default function SplashScreen() {
       useNativeDriver: true,
     });
 
-    // 第二阶段：标语淡入
+    // 第二阶段：标记淡入
     // Phase 2: Slogan fades in
     const sloganFadeIn = Animated.timing(sloganOpacity, {
       toValue: 1,
-      duration: 500,
+      duration: 800,
       useNativeDriver: true,
     });
 
@@ -197,23 +189,21 @@ export default function SplashScreen() {
     // Phase 3: Loading bar fills left to right
     const barFill = Animated.timing(barWidth, {
       toValue: 1,
-      duration: 900,
+      duration: 3000,
       useNativeDriver: false, // 宽度动画不支持 native driver / width animation requires JS driver
     });
 
-    // 进度条填充完成后根据登录状态决定跳转目标
-    // Navigate to the correct screen based on login state after bar completes
-   function onBarComplete() {
-  // _layout.tsx 会处理跳转，这里不需要做任何事
-}
+    // 进度条填充完成 → 什么都不做，由 _layout.tsx 的 useEffect 处理跳转
+    // Bar complete → do nothing; _layout.tsx useEffect handles navigation
+    function onBarComplete() {}
 
-    // 标语淡入完成后启动进度条
+    // 标记淡入完成后启动进度条
     // Start bar fill after slogan appears
     function onSloganComplete() {
       barFill.start(onBarComplete);
     }
 
-    // Logo 出现完成后启动标语淡入
+    // Logo 出现完成后启动标记淡入
     // Start slogan fade after logo appears
     function onLogoComplete() {
       sloganFadeIn.start(onSloganComplete);
@@ -232,7 +222,7 @@ export default function SplashScreen() {
     outputRange: BAR_OUTPUT_RANGE,
   });
 
-  // ── 渲染 / Render ────────────────────────────────────────────────────────────
+  // ── 渲染 / Render ─────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
 
@@ -253,10 +243,10 @@ export default function SplashScreen() {
         <Text style={styles.logoMDIS}>MDIS</Text>
       </Animated.View>
 
-      {/* 大学名称标语（与 App 名共用同一个透明度动画值）
+      {/* 大学名称标记（与 App 名共用同一透明度动画值）
           University name slogan — shares the same opacity animation as app name */}
       <Animated.Text style={[styles.slogan, { opacity: sloganOpacity }]}>
-        Management &amp; Science University
+        Management & Science University
       </Animated.Text>
 
       {/* App 名称 / App name */}

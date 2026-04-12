@@ -11,9 +11,11 @@ Manages user sign-in, registration, and sign-out via Firebase Authentication.
    user null = not logged in; app/_layout.tsx redirects to login accordingly
  - 提供 signIn / signUp / signOut 三个方法供全 App 使用
    Provides signIn / signUp / signOut methods for use anywhere in the app
+ - isGuest 为 true 表示访客模式，只可查看停车位和地图
+   isGuest true = guest mode, can only view parking availability and map
 
 用法 / Usage:
- const { user, signIn, signUp, signOut } = useAuth();
+ const { user, isGuest, signIn, signUp, signOut, enterGuestMode } = useAuth();
 */
 
 import {
@@ -30,9 +32,12 @@ import { auth } from "./firebaseConfig";
 interface AuthContextType {
   user: User | null;        // 当前登录用户，null 表示未登录 / current user, null if not logged in
   loading: boolean;         // 是否正在检查登录状态 / whether auth state is still being checked
+  isGuest: boolean;         // 是否为访客模式 / whether user is in guest mode
   signIn: (email: string, password: string) => Promise<void>;   // 登录 / sign in
   signUp: (email: string, password: string) => Promise<void>;   // 注册 / sign up
   signOut: () => Promise<void>;                                  // 登出 / sign out
+  enterGuestMode: () => void;   // 进入访客模式 / enter guest mode
+  exitGuestMode: () => void;    // 退出访客模式 / exit guest mode
 }
 
 // Provider 挂载前的默认值 / default value before Provider mounts
@@ -46,9 +51,11 @@ Wrap the entire app in app/_layout.tsx.
 Must be placed inside ThemeProvider and outside ParkingProvider.
 */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  console.log("✅ AuthProvider mounted"); // ← 加这行
 
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // 启动时检查登录状态 / checking auth state on startup
+  const [isGuest, setIsGuest] = useState(false); // 访客模式状态 / guest mode state
 
   // 监听 Firebase Auth 状态变化 / listen for Firebase Auth state changes
   useEffect(() => {
@@ -69,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   Throws a Firebase error on failure — caller is responsible for catching and displaying it.
   */
   async function signIn(email: string, password: string) {
+    setIsGuest(false); // 登录时清除访客状态 / clear guest state on sign in
     await signInWithEmailAndPassword(auth, email, password);
   }
 
@@ -80,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   Firebase auto-signs-in after registration; onAuthStateChanged updates user automatically.
   */
   async function signUp(email: string, password: string) {
+    setIsGuest(false); // 注册时清除访客状态 / clear guest state on sign up
     return await createUserWithEmailAndPassword(auth, email, password);
   }
 
@@ -88,11 +97,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   Sign out the current user.
   */
   async function signOut() {
+    setIsGuest(false); // 登出时清除访客状态 / clear guest state on sign out
     await firebaseSignOut(auth);
   }
 
+  /*
+  进入访客模式，不需要登录即可浏览停车位和地图。
+  Enter guest mode — allows browsing parking availability and map without logging in.
+  */
+  function enterGuestMode() { setIsGuest(true); }
+
+  /*
+  退出访客模式，返回登录页。
+  Exit guest mode — returns to login screen.
+  */
+  function exitGuestMode() { setIsGuest(false); }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isGuest, signIn, signUp, signOut, enterGuestMode, exitGuestMode }}>
       {children}
     </AuthContext.Provider>
   );
@@ -103,8 +125,8 @@ useAuth — 在 App 任何地方读取当前登录状态的自定义 Hook。
 Custom hook to read auth state anywhere in the app.
 
 用法 / Usage:
- const { user, signIn, signOut } = useAuth();
- if (!user) { // 未登录 / not logged in }
+ const { user, isGuest, signIn, signOut, enterGuestMode } = useAuth();
+ if (!user && !isGuest) { // 未登录且非访客 / not logged in and not guest }
 */
 export function useAuth() {
   const ctx = useContext(AuthContext);

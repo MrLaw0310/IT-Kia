@@ -10,8 +10,12 @@ Shown when user is not logged in. Supports toggling between login and register m
 
  注册成功 → Firebase 自动登录 → 同上
  Register success → Firebase auto-signs-in → same as above
+
+ 访客模式 → enterGuestMode() → app/_layout.tsx 跳转主页（权限受限）
+ Guest mode → enterGuestMode() → app/_layout.tsx navigates to home (limited access)
 */
 
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -57,6 +61,15 @@ const styles = StyleSheet.create({
   primaryBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginBottom: 16 },
   primaryBtnText: { color: "white", fontWeight: "800", fontSize: 15 },
 
+  // 分隔线 / divider
+  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { marginHorizontal: 10, fontSize: 12 },
+
+  // 访客模式按钮 / guest mode button
+  guestBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginBottom: 16, borderWidth: 1 },
+  guestBtnText: { fontWeight: "700", fontSize: 14 },
+
   // 底部提示文字 / bottom hint text
   hint: { textAlign: "center", fontSize: 12, lineHeight: 18 },
 });
@@ -65,7 +78,8 @@ const styles = StyleSheet.create({
 export default function LoginScreen() {
 
   const { theme: T } = useTheme();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, enterGuestMode } = useAuth();
+  const router = useRouter();
 
   // 当前模式：登录 or 注册 / current mode: login or register
   const [mode,     setMode]     = useState<"login" | "register">("login");
@@ -125,6 +139,18 @@ export default function LoginScreen() {
     setEmail("");
     setPassword("");
     setError("");
+  }
+
+  /*
+  进入访客模式，跳转主页但权限受限。
+  Enter guest mode — navigates to home with limited permissions.
+  */
+  function handleGuestMode() {
+    console.log("enterGuestMode type:", typeof enterGuestMode);  // ← 看看是什么
+    if (typeof enterGuestMode === "function") {
+      enterGuestMode();
+    }
+    router.replace("/(tabs)/home");
   }
 
   // 登录按钮文字 / button label
@@ -220,6 +246,22 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.primaryBtnText}>{btnLabel}</Text>
             )}
+          </TouchableOpacity>
+
+          {/* 分隔线 / Divider */}
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: T.border }]} />
+            <Text style={[styles.dividerText, { color: T.muted }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: T.border }]} />
+          </View>
+
+          {/* 访客模式按钮 / Guest mode button */}
+          <TouchableOpacity
+            style={[styles.guestBtn, { borderColor: T.border, backgroundColor: T.card }]}
+            onPress={handleGuestMode}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.guestBtnText, { color: T.muted }]}>👁  Continue as Guest</Text>
           </TouchableOpacity>
 
           {/* 底部切换提示 / Bottom mode switch hint */}

@@ -24,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../utils/AuthContext";
 import { useParkingContext } from "../../utils/ParkingContext";
 import type { Theme } from "../../utils/ThemeContext";
 import { useTheme } from "../../utils/ThemeContext";
@@ -724,6 +725,53 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize:   13,
   },
+
+  // 访客锁定提示卡片
+  // Guest locked activity card
+  guestLockCard: {
+    borderWidth:   1,
+    borderRadius:  16,
+    padding:       24,
+    alignItems:    "center",
+    gap:           10,
+    marginBottom:  8,
+  },
+
+  // 锁定图标文字
+  // Lock icon text
+  guestLockIcon: { fontSize: 32 },
+
+  // 锁定标题文字
+  // Lock title text
+  guestLockTitle: {
+    fontWeight: "700",
+    fontSize:   15,
+    textAlign:  "center",
+  },
+
+  // 锁定副标题文字
+  // Lock subtitle text
+  guestLockSub: {
+    fontSize:   12,
+    textAlign:  "center",
+  },
+
+  // 锁定卡片内的登录按钮
+  // Sign-in button inside guest lock card
+  guestSignInBtn: {
+    borderRadius:      12,
+    paddingHorizontal: 28,
+    paddingVertical:   10,
+    marginTop:         4,
+  },
+
+  // 登录按钮文字
+  // Sign-in button text
+  guestSignInBtnText: {
+    color:      "white",
+    fontWeight: "800",
+    fontSize:   14,
+  },
 });
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
@@ -751,6 +799,7 @@ export default function HomeScreen() {
 
   const { theme: T } = useTheme();
   const router       = useRouter();
+  const { isGuest }  = useAuth();
 
   // ── 计算汇总数值 / Computed totals ──────────────────────────────────────────
   const TOTAL_SPOTS     = totalNormal + okuTotal;  // 所有车位 / all spots
@@ -1041,10 +1090,40 @@ export default function HomeScreen() {
 
   // ── 最近活动列表渲染 / Recent activity list renderer ────────────────────────
   /*
-  抽取为函数，使 JSX 更简洁，与团队其他页面风格保持一致。
-  Extracted as a function to keep JSX concise and consistent with other screens.
+  访客显示锁定提示卡片；已登录用户显示真实活动记录。
+  Guests see a locked placeholder card; signed-in users see real activity records.
   */
   function renderActivityList() {
+    // 访客：显示锁定提示卡片，含 Sign In 按钮
+    // Guest: show locked placeholder card with Sign In button
+    if (isGuest) {
+      return (
+        <View
+          style={[
+            styles.guestLockCard,
+            { backgroundColor: T.card, borderColor: T.border },
+          ]}
+        >
+          <Text style={styles.guestLockIcon}>🔒</Text>
+          <Text style={[styles.guestLockTitle, { color: T.text }]}>
+            Activity is Private
+          </Text>
+          <Text style={[styles.guestLockSub, { color: T.muted }]}>
+            Sign in to view recent parking activity
+          </Text>
+          <TouchableOpacity
+            style={[styles.guestSignInBtn, { backgroundColor: T.accent }]}
+            onPress={function goToSignIn() { router.push("/login" as any); }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.guestSignInBtnText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // 已登录但无活动记录
+    // Signed in but no activity yet
     if (activity.length === 0) {
       return (
         <View style={{ padding: 20, alignItems: "center" }}>
@@ -1189,7 +1268,8 @@ export default function HomeScreen() {
         {/* 快捷操作区域标题 / Quick actions section title */}
         <Text style={[styles.sectionTitle, { color: T.muted }]}>QUICK ACTIONS</Text>
 
-        {/* 第一行：保安 | 扫描车牌 / Row 1: Security | Scan Plate */}
+        {/* 第一行：保安 | 扫描车牌（访客显示 Sign In 按钮替代 Scan Plate）
+            Row 1: Security | Scan Plate (guests see Sign In button instead of Scan Plate) */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
@@ -1200,45 +1280,61 @@ export default function HomeScreen() {
             <Text style={[styles.actionText, { color: "red" }]}>Security</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
-            onPress={function goToCamera() { router.push("/camera" as any); }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionIcon}>📷</Text>
-            <Text style={[styles.actionText, { color: T.text }]}>Scan Plate</Text>
-          </TouchableOpacity>
+          {/* 访客：显示 Sign In 按钮并跳转登录页；已登录：显示扫描车牌按钮
+              Guest: show Sign In button linking to login; signed in: show Scan Plate */}
+          {isGuest ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.accent + "88" }]}
+              onPress={function goToSignIn() { router.push("/login" as any); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionIcon}>🔑</Text>
+              <Text style={[styles.actionText, { color: T.accent }]}>Sign In</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+              onPress={function goToCamera() { router.push("/camera" as any); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionIcon}>📷</Text>
+              <Text style={[styles.actionText, { color: T.text }]}>Scan Plate</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* 第二行：快速签入/签出 | 车辆查询 / Row 2: Quick Check-In/Out | Vehicle Lookup */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              { backgroundColor: T.card, borderWidth: 1, borderColor: checkInOutBorderColor },
-            ]}
-            onPress={handleCheckInOutPress}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionIcon}>{checkInOutIcon}</Text>
-            <Text style={[styles.actionText, { color: checkInOutTextColor }]}>
-              {checkInOutLabel}
-            </Text>
-          </TouchableOpacity>
+        {/* 第二行：快速签入/签出 | 车辆查询（访客完全隐藏整行）
+            Row 2: Quick Check-In/Out | Vehicle Lookup (entire row hidden for guests) */}
+        {!isGuest && (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                { backgroundColor: T.card, borderWidth: 1, borderColor: checkInOutBorderColor },
+              ]}
+              onPress={handleCheckInOutPress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionIcon}>{checkInOutIcon}</Text>
+              <Text style={[styles.actionText, { color: checkInOutTextColor }]}>
+                {checkInOutLabel}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
-            onPress={function openLookup() {
-              setPlateInput("");
-              setLookupResult(null);
-              setLookupModal(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionIcon}>🔍</Text>
-            <Text style={[styles.actionText, { color: T.text }]}>Vehicle Lookup</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }]}
+              onPress={function openLookup() {
+                setPlateInput("");
+                setLookupResult(null);
+                setLookupModal(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionIcon}>🔍</Text>
+              <Text style={[styles.actionText, { color: T.text }]}>Vehicle Lookup</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* 最近活动列表 / Recent activity list */}
         <Text style={[styles.sectionTitle, { color: T.muted }]}>RECENT ACTIVITY</Text>

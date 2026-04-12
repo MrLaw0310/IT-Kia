@@ -20,7 +20,7 @@ Provider 嵌套顺序 / Provider nesting order:
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { StyleSheet } from "react-native";
 import { AuthProvider, useAuth } from "../utils/AuthContext";
 import { ParkingProvider } from "../utils/ParkingContext";
@@ -36,6 +36,17 @@ function InnerLayout() {
   const { theme } = useTheme();
   const { user, loading } = useAuth();
   const router = useRouter();
+  const splashReady = useRef(false);
+
+  useEffect(() => {
+  const timer = setTimeout(() => {
+    splashReady.current = true;
+    // 不管 loading，直接跳转
+    router.replace(!user ? "/login" : "/(tabs)/home");
+  }, 5000);
+  return () => clearTimeout(timer);
+}, [user]); // ← 依赖加上 user
+
 
   // 深色主题 → 状态栏文字用亮色；浅色主题 → 用暗色
   // Dark theme → light status bar text; light theme → dark text
@@ -49,12 +60,9 @@ function InnerLayout() {
   // 登录状态检查完毕后，根据 user 决定跳转目标
   // After auth state is confirmed, navigate based on user
   useEffect(() => {
-  if (loading) { return; }
-  if (!user) {
-    router.replace("/login");
-  } else {
-    router.replace("/(tabs)/home");
-  }
+  if (loading) return;
+  if (!splashReady.current) return;
+  router.replace(!user ? "/login" : "/(tabs)/home");
 }, [user, loading]);
 
   return (

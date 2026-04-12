@@ -547,7 +547,23 @@ const styles = StyleSheet.create({
 export default function ProfileScreen() {
 
   const { theme: T, themeKey } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isGuest } = useAuth();
+  // 访客模式：整页锁住，提示需登录
+  // Guest mode: full page lock with sign-in prompt
+  if (isGuest) {
+    return (
+      <View style={[styles.screen, { backgroundColor: "transparent", justifyContent: "center", alignItems: "center", padding: 40 }]}>
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>👤</Text>
+        <Text style={{ fontSize: 20, fontWeight: "800", color: T.text, marginBottom: 8, textAlign: "center" }}>
+          Sign In Required
+        </Text>
+        <Text style={{ fontSize: 14, color: T.muted, textAlign: "center", lineHeight: 22 }}>
+          Profile and vehicle management are only available to registered students.{"\n\n"}Please sign in to access your account.
+        </Text>
+      </View>
+    );
+  }
+  
   const [profile, setProfile] = useState<UserProfile>({
   name: STUDENT.name,
   course: STUDENT.course,
