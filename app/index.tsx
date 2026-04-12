@@ -25,6 +25,7 @@ Note: hardcoded dark background (#060D1F) — ThemeProvider is not yet available
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../utils/AuthContext";
 
 // ─── 进度条插值范围常量 / Interpolation range constants for the loading bar ───
 // barWidth 动画值从 0 到 1，插值输出为宽度百分比字符串
@@ -145,6 +146,10 @@ export default function SplashScreen() {
   // Router hook — used to navigate after animations finish
   const router = useRouter();
 
+  // 读取登录状态，动画结束后据此决定跳转目标
+  // Read auth state — used to decide where to navigate after animation
+  const { user, loading } = useAuth();
+
   // ── 动画值（每个控制一个视觉属性）/ Animation values (one per visual property) ──
 
   // Logo 透明度，从完全透明淡入到不透明
@@ -196,11 +201,22 @@ export default function SplashScreen() {
       useNativeDriver: false, // 宽度动画不支持 native driver / width animation requires JS driver
     });
 
-    // 进度条填充完成后跳转到主页
-    // Navigate to home after bar completes
+    // 进度条填充完成后根据登录状态决定跳转目标
+    // Navigate to the correct screen based on login state after bar completes
     function onBarComplete() {
-      setTimeout(function navigateToHome() {
-        router.replace("/(tabs)/home");
+      setTimeout(function navigateAfterSplash() {
+        if (loading) {
+          // Auth 状态还未确认，等待 _layout.tsx 的 useEffect 处理跳转
+          // Auth state not yet confirmed — let _layout.tsx useEffect handle the redirect
+          return;
+        }
+        if (user) {
+          // 已登录 → 进入主页 / logged in → go to home
+          router.replace("/(tabs)/home");
+        } else {
+          // 未登录 → 进入登录页 / not logged in → go to login
+          router.replace("/login");
+        }
       }, 200); // 200ms 让用户看到满格进度条 / short pause so user sees full bar
     }
 

@@ -14,29 +14,28 @@ Outermost layout — sets up global providers and the full-screen gradient backg
  All tab screens use transparent so this gradient shows through seamlessly.
 
 Provider 嵌套顺序 / Provider nesting order:
- ThemeProvider → ParkingProvider → InnerLayout
+ ThemeProvider → AuthProvider → ParkingProvider → InnerLayout
 */
 
 import { LinearGradient } from "expo-linear-gradient";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { StyleSheet } from "react-native";
+import { AuthProvider, useAuth } from "../utils/AuthContext";
 import { ParkingProvider } from "../utils/ParkingContext";
 import { ThemeProvider, useTheme } from "../utils/ThemeContext";
 
 // ─── InnerLayout ──────────────────────────────────────────────────────────────
 /*
-在 ThemeProvider 内部渲染，因此可以安全调用 useTheme()。
-与 RootLayout 分离，是因为 useTheme() 必须在其对应 Provider 的子树内调用。
-
-Rendered inside ThemeProvider so it can call useTheme() safely.
-Separated from RootLayout because useTheme() must be called inside ThemeProvider.
+在 ThemeProvider 和 AuthProvider 内部渲染，可以安全调用 useTheme() 和 useAuth()。
+Rendered inside ThemeProvider and AuthProvider so it can safely call useTheme() and useAuth().
 */
 function InnerLayout() {
 
-  // 读取当前主题，判断状态栏应显示亮色还是暗色文字
-  // Read current theme to decide whether StatusBar shows light or dark text
   const { theme } = useTheme();
+  const { user, loading } = useAuth();
+  const router = useRouter();
 
   // 深色主题 → 状态栏文字用亮色；浅色主题 → 用暗色
   // Dark theme → light status bar text; light theme → dark text
@@ -47,7 +46,19 @@ function InnerLayout() {
     statusBarStyle = "dark";
   }
 
-  // ── 渲染 / Render ────────────────────────────────────────────────────────────
+  // 登录状态检查完毕后，根据 user 决定跳转目标
+  // After auth state is confirmed, navigate based on user
+  useEffect(() => {
+    if (loading) { return; } // 还在检查中，先等 / still checking, wait
+
+    if (!user) {
+      // 未登录 → 跳转登录页 / not logged in → go to login
+      router.replace("/login");
+    }
+    // 已登录 → 停在当前页（Splash Screen 会跳转 home）
+    // Logged in → stay (Splash Screen handles redirect to home)
+  }, [ user, loading]);
+
   return (
     <>
       {/* 状态栏：根据主题明暗自动切换文字颜色
@@ -67,13 +78,16 @@ function InnerLayout() {
           Stack navigator: transparent contentStyle so the gradient below shows through */}
       <Stack
         screenOptions={{
-          headerShown: false,                              // 隐藏默认标题栏 / hide default header
+          headerShown: false,                               // 隐藏默认标题栏 / hide default header
           contentStyle: { backgroundColor: "transparent" }, // 透明，让渐变透出 / reveal gradient
-          animation: "fade",                               // 页面切换淡入淡出 / fade transition
+          animation: "fade",                                // 页面切换淡入淡出 / fade transition
         }}
       >
         {/* app/index.tsx — 启动画面 / Splash screen */}
         <Stack.Screen name="index" />
+
+        {/* app/login.tsx — 登录/注册页面 / Login & Registration screen */}
+        <Stack.Screen name="login" />
 
         {/* app/(tabs)/ — 标签导航组 / Tab navigation group */}
         <Stack.Screen name="(tabs)" />
@@ -93,9 +107,11 @@ Exported as the app's root layout. expo-router automatically uses this as the ou
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <ParkingProvider>
-        <InnerLayout />
-      </ParkingProvider>
+      <AuthProvider>
+        <ParkingProvider>
+          <InnerLayout />
+        </ParkingProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
