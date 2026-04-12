@@ -17,11 +17,11 @@ Manages user sign-in, registration, and sign-out via Firebase Authentication.
 */
 
 import {
-    createUserWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    User,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  User,
 } from "firebase/auth";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { auth } from "./firebaseConfig";
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   Firebase auto-signs-in after registration; onAuthStateChanged updates user automatically.
   */
   async function signUp(email: string, password: string) {
-    await createUserWithEmailAndPassword(auth, email, password);
+    return await createUserWithEmailAndPassword(auth, email, password);
   }
 
   /*

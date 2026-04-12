@@ -17,12 +17,14 @@ app/(tabs)/profile.tsx — 用户资料与设置页 / User Profile & Settings Sc
 */
 
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { useAuth } from "../../utils/AuthContext";
 import { useParkingContext, Vehicle } from "../../utils/ParkingContext";
 import { Theme, ThemeKey, THEMES, useTheme } from "../../utils/ThemeContext";
+import { fetchUserProfile, updateUserProfile, UserProfile } from "../../utils/userProfile";
 
 // ─── Constants (常量) ─────────────────────────────────────────────────────────
 const MAX_VEHICLES = 4;  // 每个学生账号最多注册车辆数 / maximum vehicles per student account
@@ -545,6 +547,22 @@ const styles = StyleSheet.create({
 export default function ProfileScreen() {
 
   const { theme: T, themeKey } = useTheme();
+  const { user, signOut } = useAuth();
+  const [profile, setProfile] = useState<UserProfile>({
+  name: STUDENT.name,
+  course: STUDENT.course,
+  year: STUDENT.year,
+  phone: STUDENT.phone,
+  studentId: STUDENT.id,
+});
+const [editModal, setEditModal] = useState(false);
+
+useEffect(() => {
+  if (!user) return;
+  fetchUserProfile(user.uid).then(data => {
+    if (data) setProfile(data);
+  });
+}, [user]);
 
   // 车辆来自 ParkingContext，修改后同步到 Home 和 Map
   // Vehicles from ParkingContext — changes sync to Home and Map
@@ -679,10 +697,25 @@ export default function ProfileScreen() {
   // ─── 账号处理函数 / Account handlers ────────────────────────────────────────
 
   /* 显示登出确认弹窗 / show logout confirmation alert */
+  async function handleSaveProfile(newProfile: UserProfile) {
+  if (!user) {
+    Alert.alert("Debug", "No user found");
+    return;
+  }
+  try {
+    await updateUserProfile(user.uid, newProfile);
+    setProfile(newProfile);
+    setEditModal(false);
+    Alert.alert("✅", "Saved!");
+  } catch (e: any) {
+    Alert.alert("Error", e.message);
+  }
+}
+
   function handleLogout() {
     Alert.alert("Log Out", "Are you sure?", [
       { text: "Cancel",  style: "cancel" },
-      { text: "Log Out", style: "destructive", onPress: () => {} }, // TODO: 清除会话并跳转登录页 / clear session & navigate to login
+      { text: "Log Out", style: "destructive", onPress: () => signOut() }, // TODO: 清除会话并跳转登录页 / clear session & navigate to login
     ]);
   }
 
@@ -749,23 +782,22 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
-          <Text style={[styles.changePhotoHint, { color: T.accent }]}>Tap to change photo</Text>
-          <Text style={[styles.studentName,   { color: T.text  }]}>{STUDENT.name}</Text>
-          <Text style={[styles.studentCourse, { color: T.muted }]}>{STUDENT.course} · {STUDENT.year}</Text>
+          <Text style={[styles.studentName,   { color: T.text  }]}>{profile.name}</Text>
+          <Text style={[styles.studentCourse, { color: T.muted }]}>{profile.course} · {profile.year}</Text>
           <View style={[styles.idBadge, { backgroundColor: T.accent + "18", borderColor: T.accent + "44" }]}>
-            <Text style={[styles.idText, { color: T.accent }]}>ID: {STUDENT.id}</Text>
+            <Text style={[styles.idText, { color: T.accent }]}>ID: {profile.studentId}</Text>
           </View>
 
           {/* 邮箱和电话行 / email + phone row */}
           <View style={[styles.infoRow, { backgroundColor: T.bg }]}>
             <View style={styles.infoItem}>
               <Text style={styles.infoIcon}>📧</Text>
-              <Text style={[styles.infoVal, { color: T.muted }]}>{STUDENT.email}</Text>
+              <Text style={[styles.infoVal, { color: T.muted }]}>{user?.email}</Text>
             </View>
             <View style={[styles.infoDivider, { backgroundColor: T.border }]} />
             <View style={styles.infoItem}>
               <Text style={styles.infoIcon}>📱</Text>
-              <Text style={[styles.infoVal, { color: T.muted }]}>{STUDENT.phone}</Text>
+              <Text style={[styles.infoVal, { color: T.muted }]}>{profile.phone}</Text>
             </View>
           </View>
         </View>
@@ -857,6 +889,15 @@ export default function ProfileScreen() {
           {/* 评分按钮，打开星级评分弹窗 / rate app button, opens star rating modal */}
           <SettingRow icon="⭐" label="Rate This App" onPress={() => setRatingVisible(true)} />
         </View>
+        
+
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: T.accent + "18", borderColor: T.accent + "44" }]}
+         onPress={() => setEditModal(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.logoutText, { color: T.accent }]}>✏️  Edit Profile</Text>
+        </TouchableOpacity>
 
         {/* 登出按钮 / logout button */}
         <TouchableOpacity
@@ -928,6 +969,72 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      <Modal transparent animationType="slide" visible={editModal} onRequestClose={() => setEditModal(false)}>
+        <TouchableOpacity style={sharedModalStyles.overlay} activeOpacity={1} onPress={() => setEditModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={[sharedModalStyles.sheet, { backgroundColor: T.card, borderColor: T.border }]}>
+            <View style={[sharedModalStyles.handle, { backgroundColor: T.border }]} />
+            <Text style={[sharedModalStyles.sheetTitle, { color: T.text }]}>Edit Profile</Text>
+
+            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Full Name</Text>
+            <TextInput
+              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={profile.name}
+              onChangeText={t => setProfile({ ...profile, name: t })}
+              placeholder="e.g. Ahmad Faiz"
+              placeholderTextColor={T.muted}
+            />
+
+            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Student ID</Text>
+            <TextInput
+              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={profile.studentId}
+              onChangeText={t => setProfile({ ...profile, studentId: t })}
+              placeholder="e.g. 24/25S1-0001DIT"
+              placeholderTextColor={T.muted}
+              autoCapitalize="characters"
+            />
+
+            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Course</Text>
+            <TextInput
+              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={profile.course}
+              onChangeText={t => setProfile({ ...profile, course: t })}
+              placeholder="e.g. Diploma in Computer Science"
+              placeholderTextColor={T.muted}
+            />
+
+            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Year</Text>
+            <TextInput
+              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={profile.year}
+              onChangeText={t => setProfile({ ...profile, year: t })}
+              placeholder="e.g. Year 2"
+              placeholderTextColor={T.muted}
+            />
+
+            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Phone</Text>
+            <TextInput
+              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
+              value={profile.phone}
+              onChangeText={t => setProfile({ ...profile, phone: t })}
+              placeholder="e.g. +60 12-345 6789"
+              placeholderTextColor={T.muted}
+              keyboardType="phone-pad"
+            />
+
+            <TouchableOpacity
+              style={[vehicleModalStyles.saveBtn, { backgroundColor: T.accent }]}
+              onPress={() => handleSaveProfile(profile)}
+            >
+              <Text style={vehicleModalStyles.saveBtnText}>Save Changes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={sharedModalStyles.cancelBtn} onPress={() => setEditModal(false)}>
+              <Text style={[sharedModalStyles.cancelBtnText, { color: T.muted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }

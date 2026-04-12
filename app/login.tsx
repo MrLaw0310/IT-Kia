@@ -109,6 +109,7 @@ export default function LoginScreen() {
       }
     } catch (e: any) {
       // 将 Firebase 错误代码转换为易读文字 / convert Firebase error codes to readable messages
+      console.log("Auth error code:", e.code, e.message);
       setError(getErrorMessage(e.code));
     } finally {
       setLoading(false);
@@ -210,7 +211,7 @@ export default function LoginScreen() {
           {/* 提交按钮 / Submit button */}
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: T.accent }]}
-            onPress={handleSubmit}
+            onPress={() => { console.log("BUTTON PRESSED"); handleSubmit(); }}
             activeOpacity={0.85}
             disabled={loading}
           >

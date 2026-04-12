@@ -49,15 +49,13 @@ function InnerLayout() {
   // 登录状态检查完毕后，根据 user 决定跳转目标
   // After auth state is confirmed, navigate based on user
   useEffect(() => {
-    if (loading) { return; } // 还在检查中，先等 / still checking, wait
-
-    if (!user) {
-      // 未登录 → 跳转登录页 / not logged in → go to login
-      router.replace("/login");
-    }
-    // 已登录 → 停在当前页（Splash Screen 会跳转 home）
-    // Logged in → stay (Splash Screen handles redirect to home)
-  }, [ user, loading]);
+  if (loading) { return; }
+  if (!user) {
+    router.replace("/login");
+  } else {
+    router.replace("/(tabs)/home");
+  }
+}, [user, loading]);
 
   return (
     <>

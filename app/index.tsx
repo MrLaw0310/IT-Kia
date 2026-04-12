@@ -203,22 +203,9 @@ export default function SplashScreen() {
 
     // 进度条填充完成后根据登录状态决定跳转目标
     // Navigate to the correct screen based on login state after bar completes
-    function onBarComplete() {
-      setTimeout(function navigateAfterSplash() {
-        if (loading) {
-          // Auth 状态还未确认，等待 _layout.tsx 的 useEffect 处理跳转
-          // Auth state not yet confirmed — let _layout.tsx useEffect handle the redirect
-          return;
-        }
-        if (user) {
-          // 已登录 → 进入主页 / logged in → go to home
-          router.replace("/(tabs)/home");
-        } else {
-          // 未登录 → 进入登录页 / not logged in → go to login
-          router.replace("/login");
-        }
-      }, 200); // 200ms 让用户看到满格进度条 / short pause so user sees full bar
-    }
+   function onBarComplete() {
+  // _layout.tsx 会处理跳转，这里不需要做任何事
+}
 
     // 标语淡入完成后启动进度条
     // Start bar fill after slogan appears
