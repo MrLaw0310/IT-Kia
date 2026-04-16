@@ -17,6 +17,7 @@ app/(tabs)/profile.tsx — 用户资料与设置页 / User Profile & Settings Sc
 */
 
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
@@ -546,6 +547,7 @@ const styles = StyleSheet.create({
 // ─── ProfileScreen (个人资料主页面) ───────────────────────────────────────────
 export default function ProfileScreen() {
 
+  const router = useRouter();
   const { theme: T, themeKey } = useTheme();
   const { user, signOut, isGuest } = useAuth();
   // 访客模式：整页锁住，提示需登录
@@ -557,19 +559,28 @@ export default function ProfileScreen() {
         <Text style={{ fontSize: 20, fontWeight: "800", color: T.text, marginBottom: 8, textAlign: "center" }}>
           Sign In Required
         </Text>
-        <Text style={{ fontSize: 14, color: T.muted, textAlign: "center", lineHeight: 22 }}>
+        <Text style={{ fontSize: 14, color: T.muted, textAlign: "center", lineHeight: 22, marginBottom: 28 }}>
           Profile and vehicle management are only available to registered students.{"\n\n"}Please sign in to access your account.
         </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: T.accent, borderRadius: 14, paddingHorizontal: 36, paddingVertical: 14 }}
+          onPress={() => router.replace("/login")}
+          activeOpacity={0.85}
+        >
+          <Text style={{ color: "white", fontWeight: "800", fontSize: 15 }}>Sign In</Text>
+        </TouchableOpacity>
       </View>
     );
   }
   
-  const [profile, setProfile] = useState<UserProfile>({
-  name: STUDENT.name,
-  course: STUDENT.course,
-  year: STUDENT.year,
-  phone: STUDENT.phone,
-  studentId: STUDENT.id,
+ // 初始值全部清空，等 Firestore 读取后再填入
+// Start with empty values — Firestore fetch will populate them
+const [profile, setProfile] = useState<UserProfile>({
+  name: "",
+  department: "",
+  year: "",
+  phone: "",
+  studentId: "",
 });
 const [editModal, setEditModal] = useState(false);
 
@@ -731,7 +742,11 @@ useEffect(() => {
   function handleLogout() {
     Alert.alert("Log Out", "Are you sure?", [
       { text: "Cancel",  style: "cancel" },
-      { text: "Log Out", style: "destructive", onPress: () => signOut() }, // TODO: 清除会话并跳转登录页 / clear session & navigate to login
+      { text: "Log Out", style: "destructive", onPress: async () => {
+        // 清除会话并跳转登录页 / clear session & navigate to login
+        await signOut();
+        router.replace("/login");
+      }}, 
     ]);
   }
 
@@ -799,7 +814,7 @@ useEffect(() => {
           </TouchableOpacity>
 
           <Text style={[styles.studentName,   { color: T.text  }]}>{profile.name}</Text>
-          <Text style={[styles.studentCourse, { color: T.muted }]}>{profile.course} · {profile.year}</Text>
+          <Text style={[styles.studentCourse, { color: T.muted }]}>{profile.department} · {profile.year}</Text>
           <View style={[styles.idBadge, { backgroundColor: T.accent + "18", borderColor: T.accent + "44" }]}>
             <Text style={[styles.idText, { color: T.accent }]}>ID: {profile.studentId}</Text>
           </View>
@@ -991,43 +1006,7 @@ useEffect(() => {
             <View style={[sharedModalStyles.handle, { backgroundColor: T.border }]} />
             <Text style={[sharedModalStyles.sheetTitle, { color: T.text }]}>Edit Profile</Text>
 
-            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Full Name</Text>
-            <TextInput
-              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
-              value={profile.name}
-              onChangeText={t => setProfile({ ...profile, name: t })}
-              placeholder="e.g. Ahmad Faiz"
-              placeholderTextColor={T.muted}
-            />
-
-            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Student ID</Text>
-            <TextInput
-              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
-              value={profile.studentId}
-              onChangeText={t => setProfile({ ...profile, studentId: t })}
-              placeholder="e.g. 24/25S1-0001DIT"
-              placeholderTextColor={T.muted}
-              autoCapitalize="characters"
-            />
-
-            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Course</Text>
-            <TextInput
-              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
-              value={profile.course}
-              onChangeText={t => setProfile({ ...profile, course: t })}
-              placeholder="e.g. Diploma in Computer Science"
-              placeholderTextColor={T.muted}
-            />
-
-            <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Year</Text>
-            <TextInput
-              style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}
-              value={profile.year}
-              onChangeText={t => setProfile({ ...profile, year: t })}
-              placeholder="e.g. Year 2"
-              placeholderTextColor={T.muted}
-            />
-
+            {/* 仅保留电话号码可编辑 / Only phone number is editable */}
             <Text style={[vehicleModalStyles.inputLabel, { color: T.muted }]}>Phone</Text>
             <TextInput
               style={[vehicleModalStyles.input, { backgroundColor: T.bg, borderColor: T.border, color: T.text }]}

@@ -25,8 +25,27 @@ import {
   signInWithEmailAndPassword,
   User,
 } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { auth } from "./firebaseConfig";
+import { createUserProfile, updateUserProfile } from "./userProfile";
+
+// ─── 用户数据接口 / User data interfaces ─────────────────────────────────────
+export interface UserProfile {
+  name: string;
+  department: string;
+  year: string;
+  studentId: string;
+  phone: string;
+}
+
+export interface VehicleData {
+  plate: string;
+  brand: string;
+  model: string;
+  color: string;
+  isDefault: boolean;
+}
 
 // ─── Context 接口 / Context shape ────────────────────────────────────────────
 interface AuthContextType {
@@ -34,7 +53,7 @@ interface AuthContextType {
   loading: boolean;         // 是否正在检查登录状态 / whether auth state is still being checked
   isGuest: boolean;         // 是否为访客模式 / whether user is in guest mode
   signIn: (email: string, password: string) => Promise<void>;   // 登录 / sign in
-  signUp: (email: string, password: string) => Promise<void>;   // 注册 / sign up
+  signUp: (email: string, password: string, profile: UserProfile, vehicle: VehicleData) => Promise<void>;   // 注册 / sign up
   signOut: () => Promise<void>;                                  // 登出 / sign out
   enterGuestMode: () => void;   // 进入访客模式 / enter guest mode
   exitGuestMode: () => void;    // 退出访客模式 / exit guest mode
@@ -81,23 +100,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /*
-  用电邮和密码注册新账号。
-  Register a new account with email and password.
+  用电邮和密码注册新账号，同时保存用户资料和车辆信息。
+  Register a new account with email and password, save user profile and vehicle.
 
   注册成功后 Firebase 会自动登录，onAuthStateChanged 会更新 user。
   Firebase auto-signs-in after registration; onAuthStateChanged updates user automatically.
   */
-  async function signUp(email: string, password: string) {
+  async function signUp(email: string, password: string, profile: UserProfile, vehicle: VehicleData) {
     setIsGuest(false); // 注册时清除访客状态 / clear guest state on sign up
-    return await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
+    
+    // 创建用户资料文档 / Create user profile document
+    await createUserProfile(uid, email);
+    
+    // 保存用户资料 / Save user profile
+    await updateUserProfile(uid, {
+      name: profile.name,
+      department: profile.department,
+      year: profile.year,
+      studentId: profile.studentId,
+      phone: profile.phone,
+    });
+    
+    // 保存车辆信息到 AsyncStorage（按用户ID分隔）/ Save vehicle to AsyncStorage (keyed by user ID)
+    const vehicleKey = `mdis_vehicle_${uid}`;
+    
+    // 多次重试确保数据被正确写入 / Retry multiple times to ensure data is written
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await AsyncStorage.setItem(vehicleKey, JSON.stringify(vehicle));
+        
+        // 立即读取验证数据是否真的被保存 / Immediately read back to verify
+        const saved = await AsyncStorage.getItem(vehicleKey);
+        if (saved) {
+          break;
+        } else {
+          retries--;
+        }
+      } catch (e) {
+        retries--;
+      }
+    }
+    
+    // 同时保存到多辆车列表中，作为第一辆车 / Also save as first vehicle in the vehicles list
+    // 这样 ParkingContext 的 loadLocal 可以直接找到 mdis_vehicles_{uid}
+    // This way ParkingContext's loadLocal can find mdis_vehicles_{uid} directly
+    const vehiclesListKey = `mdis_vehicles_${uid}`;
+    const vehicleWithId = {
+      id: Date.now().toString(),
+      plate: vehicle.plate,
+      model: vehicle.model,
+      isPaid: false,
+      isOKU: vehicle.isOKU || false,
+    };
+    await AsyncStorage.setItem(vehiclesListKey, JSON.stringify([vehicleWithId]));
+    
+    // 等待足够长的时间确保 loadLocal 能读到数据
+    // Wait long enough to ensure loadLocal can read the data
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
 
   /*
-  登出当前用户。
-  Sign out the current user.
+  登出当前用户，并清除所有用户相关的本地数据。
+  Sign out the current user and clear all user-related local data.
   */
   async function signOut() {
     setIsGuest(false); // 登出时清除访客状态 / clear guest state on sign out
+    
+    // 清除用户相关的 AsyncStorage 数据 / Clear user-related AsyncStorage data
+    if (user) {
+      const uid = user.uid;
+      await Promise.all([
+        AsyncStorage.removeItem(`mdis_vehicles_${uid}`),
+        AsyncStorage.removeItem(`mdis_session_${uid}`),
+        AsyncStorage.removeItem(`mdis_activity_${uid}`),
+        AsyncStorage.removeItem(`mdis_vehicle_${uid}`),
+      ]);
+    }
+    
+    // 登出 Firebase / Sign out from Firebase
     await firebaseSignOut(auth);
   }
 

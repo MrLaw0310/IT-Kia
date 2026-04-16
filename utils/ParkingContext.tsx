@@ -33,6 +33,7 @@ Manages all shared parking data via React Context.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { collection, doc, getDocs, onSnapshot, writeBatch } from "firebase/firestore";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
 import { db } from "./firebaseConfig";
 
 // ─── Type Definitions (类型定义) ─────────────────────────────────────────────
@@ -210,12 +211,6 @@ const SPOTS_COLLECTION = "parking_spots"; // Firestore 停车格子集合 / Fire
 const LAYOUT_VERSION = "v3";
 const LAYOUT_VERSION_KEY = "mdis_layout_version"; // 存在 AsyncStorage，记录当前版本 / stored in AsyncStorage
 
-/* 首次启动时加载的默认演示车辆 / default demo vehicles loaded on first launch */
-const DEFAULT_VEHICLES: Vehicle[] = [
-  { id: "1", plate: "WXY 1234", model: "Honda Civic (White)", isPaid: true,  isOKU: false },
-  { id: "2", plate: "JHB 5678", model: "Toyota Vios (Silver)", isPaid: false, isOKU: false },
-];
-
 // ─── Context 初始值 / Context default value ──────────────────────────────────
 const ParkingContext = createContext<ParkingContextType | null>(null);
 
@@ -263,30 +258,87 @@ Wrap the entire app with this to enable shared parking state.
 放置位置 / Place in: app/_layout.tsx → <ParkingProvider>...</ParkingProvider>
 */
 export function ParkingProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();  // 获取当前登录用户 / get current logged-in user
 
-  const [vehicles,      setVehiclesState] = useState<Vehicle[]>(DEFAULT_VEHICLES);
+  const [vehicles,      setVehiclesState] = useState<Vehicle[]>([]);
   const [spots,         setSpotsState]    = useState<ParkingSpot[]>([]);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [activity,      setActivity]      = useState<ActivityItem[]>([]);
   const [loaded,        setLoaded]        = useState(false); // 本地数据是否已从 AsyncStorage 读取完毕 / whether local data is loaded
 
+  // 根据用户 ID 生成存储 key / Generate storage keys based on user ID
+  const uid = user?.uid || "guest";
+  const VEHICLES_KEY_USER = `mdis_vehicles_${uid}`;
+  const SESSION_KEY_USER  = `mdis_session_${uid}`;
+  const ACTIVITY_KEY_USER = `mdis_activity_${uid}`;
+
   // ─── 启动时从 AsyncStorage 读取本地数据 / Load local data from AsyncStorage on start ───
+  // 当用户变化时重新读取数据 / Reload data when user changes
   useEffect(() => {
+    let isMounted = true;
+    
     async function loadLocal() {
       try {
         const [v, s, a] = await Promise.all([
-          AsyncStorage.getItem(VEHICLES_KEY),
-          AsyncStorage.getItem(SESSION_KEY),
-          AsyncStorage.getItem(ACTIVITY_KEY),
+          AsyncStorage.getItem(VEHICLES_KEY_USER),
+          AsyncStorage.getItem(SESSION_KEY_USER),
+          AsyncStorage.getItem(ACTIVITY_KEY_USER),
         ]);
-        if (v) { setVehiclesState(JSON.parse(v)); }
-        if (s) { setActiveSession(JSON.parse(s)); }
-        if (a) { setActivity(JSON.parse(a)); }
-      } catch {}
-      setLoaded(true); // 无论是否出错都标记为已读取 / mark as loaded regardless of errors
+        
+        // 尝试加载多辆车列表；如果不存在，检查注册时保存的单辆车 / Try to load vehicles list; if missing, check for registration vehicle
+        if (v) { 
+          if (isMounted) {
+            setVehiclesState(JSON.parse(v));
+          }
+        } else {
+          // 检查注册时保存的单个车辆记录 / Check for the registration vehicle (singular key)
+          const singleVehicleData = await AsyncStorage.getItem(`mdis_vehicle_${uid}`);
+          if (singleVehicleData) {
+            // 转换为注册车辆格式 / Convert to Vehicle format with registration defaults
+            const vehicleData = JSON.parse(singleVehicleData);
+            const registerVehicle: Vehicle = {
+              id: Date.now().toString(),
+              plate: vehicleData.plate,
+              model: vehicleData.model,
+              isPaid: false,  // 默认未缴费 / default not paid
+              isOKU: vehicleData.isOKU || false,
+            };
+            if (isMounted) {
+              setVehiclesState([registerVehicle]);
+            }
+          } else {
+            // 如果都不存在，显示空列表 / If neither exists, show empty list
+            if (isMounted) {
+              setVehiclesState([]);
+            }
+          }
+        }
+        if (s) { setActiveSession(JSON.parse(s)); } else { setActiveSession(null); }
+        if (a) { setActivity(JSON.parse(a)); } else { setActivity([]); }
+      } catch (e) {
+        console.warn("loadLocal error:", e);
+      }
+      if (isMounted) {
+        setLoaded(true); // 无论是否出错都标记为已读取 / mark as loaded regardless of errors
+      }
     }
+    
+    // 首次加载
     loadLocal();
-  }, []);
+    
+    // 刚注册新账号时，signUp 后会延迟 500ms，所以在 600ms 时重新检查一次
+    // If just registered, re-check after 600ms to catch the newly saved vehicle
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        loadLocal();
+      }
+    }, 600);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [uid]);
 
   // ─── Firestore 实时监听停车格子 / Firestore real-time listener for parking spots ───
   useEffect(() => {
@@ -348,22 +400,22 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) { return; }
-    AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify(vehicles)).catch(() => {});
-  }, [vehicles, loaded]);
+    AsyncStorage.setItem(VEHICLES_KEY_USER, JSON.stringify(vehicles)).catch(() => {});
+  }, [vehicles, loaded, VEHICLES_KEY_USER]);
 
   useEffect(() => {
     if (!loaded) { return; }
     if (activeSession) {
-      AsyncStorage.setItem(SESSION_KEY, JSON.stringify(activeSession)).catch(() => {});
+      AsyncStorage.setItem(SESSION_KEY_USER, JSON.stringify(activeSession)).catch(() => {});
     } else {
-      AsyncStorage.removeItem(SESSION_KEY).catch(() => {}); // 无会话时清除 / clear when no session
+      AsyncStorage.removeItem(SESSION_KEY_USER).catch(() => {}); // 无会话时清除 / clear when no session
     }
-  }, [activeSession, loaded]);
+  }, [activeSession, loaded, SESSION_KEY_USER]);
 
   useEffect(() => {
     if (!loaded) { return; }
-    AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity)).catch(() => {});
-  }, [activity, loaded]);
+    AsyncStorage.setItem(ACTIVITY_KEY_USER, JSON.stringify(activity)).catch(() => {});
+  }, [activity, loaded, ACTIVITY_KEY_USER]);
 
   // 辅助函数：获取当前时间字符串 / helper: get current time string
   function now() {

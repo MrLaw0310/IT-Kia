@@ -34,19 +34,25 @@ Rendered inside ThemeProvider and AuthProvider so it can safely call useTheme() 
 function InnerLayout() {
 
   const { theme } = useTheme();
-  const { user, loading } = useAuth();
+  const { user, loading, isGuest } = useAuth();
   const router = useRouter();
   const splashReady = useRef(false);
 
+  // 5秒计时器，splash 动画结束后再跳转
+  // 5-second timer — navigate only after splash animation finishes
   useEffect(() => {
-  const timer = setTimeout(() => {
-    splashReady.current = true;
-    // 不管 loading，直接跳转
-    router.replace(!user ? "/login" : "/(tabs)/home");
-  }, 5000);
-  return () => clearTimeout(timer);
-}, [user]); // ← 依赖加上 user
-
+    const timer = setTimeout(() => {
+      splashReady.current = true;
+      // 访客模式、已登录 → 主页；未登录 → 登录页
+      // Guest or logged in → home; not logged in → login
+      if (isGuest) {
+        router.replace("/(tabs)/home");
+      } else {
+        router.replace(!user ? "/login" : "/(tabs)/home");
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [user, isGuest]);
 
   // 深色主题 → 状态栏文字用亮色；浅色主题 → 用暗色
   // Dark theme → light status bar text; light theme → dark text
@@ -57,13 +63,17 @@ function InnerLayout() {
     statusBarStyle = "dark";
   }
 
-  // 登录状态检查完毕后，根据 user 决定跳转目标
-  // After auth state is confirmed, navigate based on user
+  // 登录状态检查完毕后，根据 user / isGuest 决定跳转目标
+  // After auth state is confirmed, navigate based on user / isGuest
   useEffect(() => {
-  if (loading) return;
-  if (!splashReady.current) return;
-  router.replace(!user ? "/login" : "/(tabs)/home");
-}, [user, loading]);
+    if (loading) return;
+    if (!splashReady.current) return; // 还没到5秒，不跳 / wait for splash to finish
+    if (isGuest) {
+      router.replace("/(tabs)/home");
+    } else {
+      router.replace(!user ? "/login" : "/(tabs)/home");
+    }
+  }, [user, loading, isGuest]);
 
   return (
     <>
@@ -94,6 +104,7 @@ function InnerLayout() {
 
         {/* app/login.tsx — 登录/注册页面 / Login & Registration screen */}
         <Stack.Screen name="login" />
+
 
         {/* app/(tabs)/ — 标签导航组 / Tab navigation group */}
         <Stack.Screen name="(tabs)" />
