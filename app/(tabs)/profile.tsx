@@ -577,7 +577,7 @@ export default function ProfileScreen() {
 // Start with empty values — Firestore fetch will populate them
 const [profile, setProfile] = useState<UserProfile>({
   name: "",
-  department: "",
+  course: "",
   year: "",
   phone: "",
   studentId: "",
@@ -814,7 +814,7 @@ useEffect(() => {
           </TouchableOpacity>
 
           <Text style={[styles.studentName,   { color: T.text  }]}>{profile.name}</Text>
-          <Text style={[styles.studentCourse, { color: T.muted }]}>{profile.department} · {profile.year}</Text>
+          <Text style={[styles.studentCourse, { color: T.muted }]}>{profile.course} · {profile.year}</Text>
           <View style={[styles.idBadge, { backgroundColor: T.accent + "18", borderColor: T.accent + "44" }]}>
             <Text style={[styles.idText, { color: T.accent }]}>ID: {profile.studentId}</Text>
           </View>

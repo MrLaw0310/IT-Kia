@@ -1,27 +1,6 @@
-/*
-app/index.tsx — 启动画面 / Splash Screen
-
-用户打开 App 时看到的第一个画面。
-The first screen users see when opening the app.
-
-动画顺序 / Animation sequence:
- 1. Logo "MDIS" 淡入 + 弹性缩放出现 / fades in + spring scales up
- 2. 标记和 App 名称淡入 / slogan and app name fade in
- 3. 加载进度条从左向右填充 / loading bar fills left to right
- 4. 进度条完成后由 _layout.tsx 决定跳转目标 / _layout.tsx handles navigation after bar completes
-
-注意：此页面使用固定深色背景 (#060D1F)，因为 ThemeProvider 此时尚未就绪。
-Note: hardcoded dark background (#060D1F) — ThemeProvider is not yet available here.
-
-注意：不要在此文件调用 useAuth()！index.tsx 在 AuthProvider 完全就绪前可能渲染，
-      调用 useAuth() 会破坏整个 context 树，导致 login.tsx 里 enterGuestMode 变成 undefined。
-Note: Do NOT call useAuth() here! index.tsx may render before AuthProvider is ready,
-      which breaks the entire context tree and causes enterGuestMode to be undefined in login.tsx.
-*/
-
-import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
 // ─── 进度条插值范围常量 / Interpolation range constants for the loading bar ───
 // barWidth 动画值从 0 到 1，插值输出为宽度百分比字符串

@@ -14,7 +14,7 @@ Outermost layout — sets up global providers and the full-screen gradient backg
  All tab screens use transparent so this gradient shows through seamlessly.
 
 Provider 嵌套顺序 / Provider nesting order:
- ThemeProvider → AuthProvider → ParkingProvider → InnerLayout
+ ThemeProvider → AuthProvider → ParkingProvider → NotificationProvider → InnerLayout
 */
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,7 +22,9 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
 import { StyleSheet } from "react-native";
+import NotificationBanner from "../components/NotificationBanner";
 import { AuthProvider, useAuth } from "../utils/AuthContext";
+import { NotificationProvider } from "../utils/NotificationContext";
 import { ParkingProvider } from "../utils/ParkingContext";
 import { ThemeProvider, useTheme } from "../utils/ThemeContext";
 
@@ -81,6 +83,10 @@ function InnerLayout() {
           StatusBar: text colour adapts to current theme brightness */}
       <StatusBar style={statusBarStyle} />
 
+      {/* 应用内通知横幅，显示停车相关提醒等
+          In-app notification banner for parking alerts etc. */}
+      <NotificationBanner />
+
       {/* 全屏渐变背景，绝对定位铺满，层级最低，所有页面内容叠加在其上方
           Full-screen gradient: absoluteFill, lowest z-index, all page content sits above it */}
       <LinearGradient
@@ -126,7 +132,9 @@ export default function RootLayout() {
     <ThemeProvider>
       <AuthProvider>
         <ParkingProvider>
-          <InnerLayout />
+          <NotificationProvider>
+            <InnerLayout />
+          </NotificationProvider>
         </ParkingProvider>
       </AuthProvider>
     </ThemeProvider>
