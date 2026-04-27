@@ -79,6 +79,7 @@ app/
 ├── index.tsx              ← Splash screen
 ├── _layout.tsx            ← Root stack layout
 ├── camera.tsx             ← Plate check-in screen
+├── login.tsx              ← Login page
 └── (tabs)/
     ├── _layout.tsx        ← Bottom tab bar
     ├── home.tsx           ← Dashboard
@@ -87,9 +88,12 @@ app/
     └── profile.tsx        ← Student profile & vehicles
 
 utils/
-├── storage.ts             ← AsyncStorage helpers (save/load plates)
-├── ParkingContext.tsx     ← AsyncStorage helpers (save/load map)
-└── ThemeContext.tsx       ← AsyncStorage helpers (save/load theme)
+├── AuthContext.tsx        ← Global Auth State(use Firebase App to manage user sign-in, registration and sign-out)
+├── firebaseConfig.ts      ← Initialises the Firebase App and exports Firestore + Auth instances for use across the app.
+├── ParkingContext.tsx     ← Manages all shared parking data via React Context
+├── storage.ts             ← Saving and loading the registered plates list via AsyncStorage
+├── ThemeContext.tsx       ← Uses gradientColors to render a full-screen LinearGradient
+└── userProfile.tsx        ← save/load users' plate,theme and contact number
 
 assets/
 └── images/
