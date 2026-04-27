@@ -18,13 +18,15 @@ app/(tabs)/profile.tsx — 用户资料与设置页 / User Profile & Settings Sc
 
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
+import { doc, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
-  Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
+    Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useAuth } from "../../utils/AuthContext";
 import { useParkingContext, Vehicle } from "../../utils/ParkingContext";
 import { Theme, ThemeKey, THEMES, useTheme } from "../../utils/ThemeContext";
+import { db } from "../../utils/firebaseConfig";
 import { fetchUserProfile, updateUserProfile, UserProfile } from "../../utils/userProfile";
 
 // ─── Constants (常量) ─────────────────────────────────────────────────────────
@@ -252,7 +254,7 @@ Bottom sheet form for adding or editing a vehicle.
 function VehicleModal({ visible, vehicle, onSave, onClose }: {
   visible: boolean;
   vehicle?: Vehicle;
-  onSave: (plate: string, model: string, isOKU: boolean) => void;
+  onSave: (plate: string, model: string, isOKU: boolean) => Promise<void>;
   onClose: () => void;
 }) {
   const { theme: T } = useTheme();
@@ -281,8 +283,8 @@ function VehicleModal({ visible, vehicle, onSave, onClose }: {
   if (vehicle) { saveBtnLabel = "Save Changes"; }
 
   // 保存并关闭 / save then close
-  function handleSave() {
-    onSave(plate, model, isOKU);
+  async function handleSave() {
+    await onSave(plate, model, isOKU);
     onClose();
   }
 
@@ -661,13 +663,18 @@ useEffect(() => {
   // ─── 车辆处理函数 / Vehicle handlers ────────────────────────────────────────
 
   /* 新增车辆到列表 / add a new vehicle to the list */
-  function addVehicle(plate: string, model: string, isOKU: boolean) {
+  async function addVehicle(plate: string, model: string, isOKU: boolean) {
     if (!plate.trim()) {
       Alert.alert("Error", "Please enter a plate number.");
       return;
     }
     if (vehicles.length >= MAX_VEHICLES) {
       Alert.alert("Limit Reached", `Maximum ${MAX_VEHICLES} vehicles allowed.`);
+      return;
+    }
+    // 检查用户资料是否已加载 / Check if user profile is loaded
+    if (!profile.name || !profile.phone) {
+      Alert.alert("Profile Not Loaded", "Please wait for your profile to load before registering vehicles.");
       return;
     }
     const updated = [...vehicles, {
@@ -678,12 +685,31 @@ useEffect(() => {
       isPaid: false, // 新车辆默认未付费 / new vehicles start unpaid
     }];
     setVehicles(updated);
-    Alert.alert("✅ Registered", `${plate.trim().toUpperCase()} added.\nPlease pay RM${ANNUAL_FEE} at the admin counter.`);
+
+    // 添加到全局车辆查询表 / Add to global vehicle lookup registry
+    const normalizedPlate = plate.trim().toUpperCase().replace(/\s/g, "");
+    try {
+      await setDoc(doc(db, "vehicle_registry", normalizedPlate), {
+        ownerName: profile.name,
+        ownerPhone: profile.phone,
+        model,
+        isOKU,
+      });
+      Alert.alert("✅ Registered", `${plate.trim().toUpperCase()} added to lookup registry.\nPlease pay RM${ANNUAL_FEE} at the admin counter.`);
+    } catch (e) {
+      console.warn("Failed to add to vehicle registry:", e);
+      Alert.alert("Warning", "Vehicle registered locally but lookup may not work. Please try again.");
+    }
   }
 
   /* 编辑已有车辆信息 / edit an existing vehicle's details */
-  function editVehicle(plate: string, model: string, isOKU: boolean) {
+  async function editVehicle(plate: string, model: string, isOKU: boolean) {
     if (!editTarget) {
+      return;
+    }
+    // 检查用户资料是否已加载 / Check if user profile is loaded
+    if (!profile.name || !profile.phone) {
+      Alert.alert("Profile Not Loaded", "Please wait for your profile to load before editing vehicles.");
       return;
     }
     // 遍历所有车辆，找到目标车辆后更新其信息 / loop through all vehicles and update the target
@@ -696,6 +722,20 @@ useEffect(() => {
       }
     }
     setVehicles(updated);
+
+    // 更新全局车辆查询表 / Update global vehicle lookup registry
+    const normalizedPlate = plate.trim().toUpperCase().replace(/\s/g, "");
+    try {
+      await setDoc(doc(db, "vehicle_registry", normalizedPlate), {
+        ownerName: profile.name,
+        ownerPhone: profile.phone,
+        model,
+        isOKU,
+      });
+    } catch (e) {
+      console.warn("Failed to update vehicle registry:", e);
+      Alert.alert("Warning", "Vehicle updated locally but lookup may not work. Please try again.");
+    }
   }
 
   /* 二次确认后删除车辆 / remove a vehicle after user confirmation */

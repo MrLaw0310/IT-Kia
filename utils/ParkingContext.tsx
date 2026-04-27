@@ -422,6 +422,11 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
     return new Date().toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
   }
 
+  // 辅助函数：比较车牌（忽略空格和大小写） / helper: compare plates ignoring spaces and case
+  function platesMatch(a: string, b: string): boolean {
+    return a.toUpperCase().replace(/\s/g, "") === b.toUpperCase().replace(/\s/g, "");
+  }
+
   // ─── 通过 Context 暴露的方法 / Methods exposed via Context ──────────────────
 
   /* 更新注册车辆列表 / update the vehicles list */
@@ -451,12 +456,34 @@ export function ParkingProvider({ children }: { children: ReactNode }) {
   签入到指定车位，同时更新 Firestore 和本地 state。
   Check in to a spot — writes to Firestore and updates local state.
 
+  如果 spotId 为空，则自动分配一个空闲车位（优先 OKU 车位如果车辆是 OKU）。
+  If spotId is empty, auto-assign a free spot (prefer OKU spots if vehicle is OKU).
+
   Firestore 更新会通过 onSnapshot 自动广播给所有客户端，
   本地 state 也同步更新确保当前用户界面立即响应。
   The Firestore write is broadcast to all clients via onSnapshot.
   Local state is also updated immediately so the current user's UI responds instantly.
   */
   function checkIn(spotId: string, plate: string) {
+    // 如果 spotId 为空，自动分配车位 / If spotId is empty, auto-assign a spot
+    if (!spotId) {
+      // 查找车辆以确定是否 OKU / Find the vehicle to check if OKU
+      const vehicle = vehicles.find(v => platesMatch(v.plate, plate));
+      const preferOKU = vehicle ? vehicle.isOKU : false;
+
+      // 优先分配匹配类型的空闲车位 / Prefer free spots of matching type
+      let freeSpot = spots.find(s => s.status === "free" && (preferOKU ? s.type === "oku" : s.type === "normal"));
+      if (!freeSpot) {
+        // 如果没有匹配类型，分配任何空闲车位 / If no matching type, assign any free spot
+        freeSpot = spots.find(s => s.status === "free");
+      }
+      if (!freeSpot) {
+        console.warn("No free spots available for check-in");
+        return;
+      }
+      spotId = freeSpot.id;
+    }
+
     const time = now();
 
     // 更新 Firestore 中的格子状态 / update spot status in Firestore

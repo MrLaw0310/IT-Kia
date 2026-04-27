@@ -10,21 +10,23 @@ Shows real-time parking availability, stats, quick-action buttons, and recent ac
 */
 
 import { useRouter } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Image,
-  Linking,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    Image,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useAuth } from "../../utils/AuthContext";
+import { db } from "../../utils/firebaseConfig";
 import { useParkingContext } from "../../utils/ParkingContext";
 import type { Theme } from "../../utils/ThemeContext";
 import { useTheme } from "../../utils/ThemeContext";
@@ -844,6 +846,7 @@ export default function HomeScreen() {
     name:  string;
     plate: string;
     phone: string;
+    model?: string;
   } | null>(null);
 
   // ── 快捷操作处理函数 / Quick action handlers ─────────────────────────────────
@@ -985,7 +988,7 @@ export default function HomeScreen() {
   通过车牌号查询车主信息。
   Looks up a vehicle owner by plate number.
   */
-  function handleVehicleLookup() {
+  async function handleVehicleLookup() {
     const plate = plateInput.trim().toUpperCase();
 
     // 不能为空
@@ -995,31 +998,62 @@ export default function HomeScreen() {
       return;
     }
 
-    // [BUG 5 FIX] 去掉所有内部空格后再与 VEHICLE_REGISTRY 的 key 比较。
-    // 原来直接用 VEHICLE_REGISTRY[plate] 精确匹配，key 带空格（如 "WXY 1234"），
-    // 用户输入 "WXY1234"（无空格）时查不到，反之亦然。
-    // [BUG 5 FIX] Strip all internal spaces before matching against VEHICLE_REGISTRY keys.
-    // Previously VEHICLE_REGISTRY[plate] did an exact key lookup — keys contain spaces
-    // (e.g. "WXY 1234") so input like "WXY1234" (no space) would never match, and vice versa.
-    const plateNoSpaces = plate.replace(/\s/g, "");
-    let foundKey: string | undefined;
-    let foundEntry: { name: string; phone: string } | undefined;
-    const registryKeys = Object.keys(VEHICLE_REGISTRY);
-    for (let i = 0; i < registryKeys.length; i++) {
-      if (registryKeys[i].replace(/\s/g, "").toUpperCase() === plateNoSpaces) {
-        foundKey   = registryKeys[i];
-        foundEntry = VEHICLE_REGISTRY[registryKeys[i]];
-        break;
-      }
-    }
+    // 标准化车牌（去空格） / Normalize plate (remove spaces)
+    const normalizedPlate = plate.replace(/\s/g, "");
 
-    if (foundEntry && foundKey) {
-      // 展示原始 key 的车牌格式（保留空格），保持一致性
-      // Display the canonical plate format from the registry key (preserving spaces)
-      setLookupResult({ name: foundEntry.name, plate: foundKey, phone: foundEntry.phone });
-    } else {
-      setLookupResult(null);
-      Alert.alert("Not Found", 'No record for plate "' + plate + '".');
+    try {
+      // 从 Firestore 查询 / Query from Firestore
+      const docRef = doc(db, "vehicle_registry", normalizedPlate);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLookupResult({
+          name: data.ownerName,
+          plate: plate, // 显示原始格式 / show original format
+          phone: data.ownerPhone,
+          model: data.model,
+        });
+      } else {
+        // 回退到演示数据 / Fallback to demo data
+        const registryKeys = Object.keys(VEHICLE_REGISTRY);
+        let foundKey: string | undefined;
+        let foundEntry: { name: string; phone: string } | undefined;
+        for (let i = 0; i < registryKeys.length; i++) {
+          if (registryKeys[i].replace(/\s/g, "").toUpperCase() === normalizedPlate) {
+            foundKey = registryKeys[i];
+            foundEntry = VEHICLE_REGISTRY[registryKeys[i]];
+            break;
+          }
+        }
+
+        if (foundEntry && foundKey) {
+          setLookupResult({ name: foundEntry.name, plate: foundKey, phone: foundEntry.phone });
+        } else {
+          setLookupResult(null);
+          Alert.alert("Not Found", `No vehicle found for "${plate}".`);
+        }
+      }
+    } catch (error) {
+      console.warn("Vehicle lookup error:", error);
+      // 回退到演示数据 / Fallback to demo data
+      const registryKeys = Object.keys(VEHICLE_REGISTRY);
+      let foundKey: string | undefined;
+      let foundEntry: { name: string; phone: string } | undefined;
+      for (let i = 0; i < registryKeys.length; i++) {
+        if (registryKeys[i].replace(/\s/g, "").toUpperCase() === normalizedPlate) {
+          foundKey = registryKeys[i];
+          foundEntry = VEHICLE_REGISTRY[registryKeys[i]];
+          break;
+        }
+      }
+
+      if (foundEntry && foundKey) {
+        setLookupResult({ name: foundEntry.name, plate: foundKey, phone: foundEntry.phone });
+      } else {
+        setLookupResult(null);
+        Alert.alert("Not Found", `No vehicle found for "${plate}".`);
+      }
     }
   }
 
@@ -1612,6 +1646,12 @@ export default function HomeScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
+                {lookupResult.model && (
+                  <View style={styles.resultRow}>
+                    <Text style={[styles.resultKey, { color: T.muted }]}>Model</Text>
+                    <Text style={[styles.resultVal, { color: T.text }]}>{lookupResult.model}</Text>
+                  </View>
+                )}
               </View>
             )}
 
