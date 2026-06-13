@@ -25,17 +25,19 @@ Allows users to check in by entering their plate number, and to check out.
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  Animated,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Animated,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import { useNotification } from "../utils/NotificationContext";
+import { notifyParkingBooked } from "../utils/notifications";
 import { useParkingContext } from "../utils/ParkingContext";
 import { useTheme } from "../utils/ThemeContext";
 
@@ -531,6 +533,10 @@ export default function CameraScreen() {
   const { theme: T }  = useTheme();
   const router        = useRouter();
 
+  // 从 NotificationContext 读取添加通知函数
+  // Read the addNotification function from NotificationContext
+  const { addNotification } = useNotification();
+
   // 从 ParkingContext 读取注册车辆和签入/签出函数
   // Read registered vehicles and check-in/out functions from ParkingContext
   // [BUG 1 FIX] 同时取出 checkIn，camera 页面需要在 confirm 步骤写入 Context 才能与 Map/Home 同步
@@ -713,6 +719,10 @@ export default function CameraScreen() {
     // so Map showed no occupied spot, History had no record, and the check-out banner
     // never appeared on other screens.
     ctxCheckIn(matchedSpotId, matchedPlate);
+
+    // 触发停车预订成功通知
+    // Trigger parking booking success notification
+    notifyParkingBooked(addNotification);
 
     // 生成当前时间快照供本地显示
     // Build a time snapshot for local display
